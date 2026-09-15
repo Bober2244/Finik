@@ -25,20 +25,20 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:model"))
-    implementation(project(":core:designsystem"))
-    implementation(project(":core:navigation"))
+    implementation(projects.core.model)
+    implementation(projects.core.designsystem)
+    implementation(projects.core.navigation)
 
     // Feature-модули: по одному на экран/флоу. Новые добавлять сюда и в settings.gradle.kts.
-    implementation(project(":feature:onboarding"))
-    implementation(project(":feature:home"))
-    implementation(project(":feature:plan"))
-    implementation(project(":feature:tasks"))
-    implementation(project(":feature:shop"))
-    implementation(project(":feature:goal"))
-    implementation(project(":feature:growth"))
-    implementation(project(":feature:profile"))
-    implementation(project(":feature:report"))
+    implementation(projects.feature.onboarding)
+    implementation(projects.feature.home)
+    implementation(projects.feature.plan)
+    implementation(projects.feature.tasks)
+    implementation(projects.feature.shop)
+    implementation(projects.feature.goal)
+    implementation(projects.feature.growth)
+    implementation(projects.feature.profile)
+    implementation(projects.feature.report)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

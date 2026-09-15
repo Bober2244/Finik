@@ -7,5 +7,5 @@ android {
 }
 
 dependencies {
-    implementation(project(":core:pet"))
+    implementation(projects.core.pet)
 }

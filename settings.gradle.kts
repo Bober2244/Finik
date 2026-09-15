@@ -24,7 +24,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Finik"
-
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 include(":app")
 
 // Core: общие модули без бизнес-логики (модели, дизайн-система, навигация, слот 3D-питомца).
