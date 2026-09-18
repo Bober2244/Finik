@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.em
 import dev.bober.finik.core.designsystem.component.FinikCard
 import dev.bober.finik.core.designsystem.component.FinikProgressBar
 import dev.bober.finik.core.designsystem.component.OutlineButton
+import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.color
@@ -43,6 +44,11 @@ import dev.bober.finik.core.model.WeekPlan
 internal fun PlanScreen(
     modifier: Modifier = Modifier,
     plan: WeekPlan = SampleData.plan,
+    planConfirmed: Boolean = false,
+    onAdjust: (SpendCategory, Int) -> Unit = { _, _ -> },
+    onAdvice: () -> Unit = {},
+    onReset: () -> Unit = {},
+    onConfirm: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -54,19 +60,38 @@ internal fun PlanScreen(
     ) {
         UnallocatedCard(plan = plan)
         plan.entries.forEach { entry ->
-            PlanEntryCard(entry = entry, percent = plan.percentOf(entry.category))
+            PlanEntryCard(
+                entry = entry,
+                percent = plan.percentOf(entry.category),
+                confirmed = planConfirmed,
+                onAdjust = { delta -> onAdjust(entry.category, delta) },
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             OutlineButton(
                 text = "Совет 40/30/10/20",
-                onClick = { /* TODO(logic): авто-распределение */ },
+                onClick = onAdvice,
                 modifier = Modifier.weight(1f),
             )
             OutlineButton(
                 text = "↺",
-                onClick = { /* TODO(logic): сброс плана */ },
+                onClick = onReset,
                 modifier = Modifier.width(52.dp),
                 textStyle = nunito(16),
+            )
+        }
+        if (!planConfirmed) {
+            PrimaryButton(
+                text = if (plan.freeCoins == 0) "Подтвердить план" else "Разложи все ${plan.freeCoins} свободно",
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = plan.freeCoins == 0,
+            )
+        } else {
+            Text(
+                text = "План подтверждён. Сравниваем с фактом: траты идут из статей.",
+                style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4),
+                color = FinikColor.Text46,
             )
         }
     }
@@ -110,7 +135,12 @@ private fun UnallocatedCard(plan: WeekPlan) {
 }
 
 @Composable
-private fun PlanEntryCard(entry: PlanEntry, percent: Int) {
+private fun PlanEntryCard(
+    entry: PlanEntry,
+    percent: Int,
+    confirmed: Boolean,
+    onAdjust: (Int) -> Unit,
+) {
     FinikCard(
         radius = 16.dp,
         borderColor = if (entry.left <= 0) FinikColor.RedBorderPlan else FinikColor.Border,
@@ -124,7 +154,7 @@ private fun PlanEntryCard(entry: PlanEntry, percent: Int) {
                 Text(text = entry.category.note, style = nunito(11.5, FontWeight.SemiBold), color = FinikColor.Text50)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                StepperButton(text = "−", onClick = { /* TODO(logic) */ })
+                StepperButton(text = "−", onClick = { onAdjust(-1) }, enabled = !confirmed)
                 Text(
                     text = entry.planned.toString(),
                     style = nunito(18, FontWeight.ExtraBold),
@@ -132,7 +162,7 @@ private fun PlanEntryCard(entry: PlanEntry, percent: Int) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.width(34.dp),
                 )
-                StepperButton(text = "+", onClick = { /* TODO(logic) */ })
+                StepperButton(text = "+", onClick = { onAdjust(1) }, enabled = !confirmed)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -155,7 +185,7 @@ private fun PlanEntryCard(entry: PlanEntry, percent: Int) {
 }
 
 @Composable
-private fun StepperButton(text: String, onClick: () -> Unit) {
+private fun StepperButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
@@ -163,10 +193,10 @@ private fun StepperButton(text: String, onClick: () -> Unit) {
             .clip(shape)
             .background(FinikColor.SurfaceMuted)
             .border(1.dp, FinikColor.Border, shape)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = text, style = nunito(20), color = FinikColor.Ink)
+        Text(text = text, style = nunito(20), color = if (enabled) FinikColor.Ink else FinikColor.Text58)
     }
 }
 

@@ -36,6 +36,7 @@ fun FinikShellTopBar(
     onStageClick: () -> Unit,
     onProfileClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onHelpClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -80,6 +81,12 @@ fun FinikShellTopBar(
         }
 
         Spacer(modifier = Modifier.weight(1f))
+
+        if (onHelpClick != null) {
+            SquareIconButton(onClick = onHelpClick, size = 40.dp) {
+                Text(text = "?", style = nunito(16), color = FinikColor.Ink)
+            }
+        }
 
         SquareIconButton(onClick = onProfileClick, size = 40.dp) {
             Box(modifier = Modifier.size(16.dp).background(FinikColor.Avatar, CircleShape))

@@ -34,7 +34,6 @@ import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.designsystem.theme.unbounded
 import dev.bober.finik.core.model.PetSpecies
-import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.pet.PetFigure
 import dev.bober.finik.core.pet.PetFigureSpec
 
@@ -69,7 +68,7 @@ internal fun WelcomeScreen(
                     color = FinikColor.Ink,
                 )
                 Text(
-                    text = "Планируй неделю, считай проценты и выращивай питомца на то, что сумел сберечь.",
+                    text = "Сначала реши: потратить на нужное, на желаемое или отложить. Потом увидишь, как это меняет питомца.",
                     style = nunito(16, FontWeight.SemiBold, lineHeight = 1.5),
                     color = FinikColor.Text43,
                     textAlign = TextAlign.Center,
@@ -83,9 +82,9 @@ internal fun WelcomeScreen(
                 modifier = Modifier.height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                StatTile(value = SampleData.WEEKLY_INCOME.toString(), label = "монет в неделю", valueColor = FinikColor.CoinInk40)
-                StatTile(value = "4", label = "статьи расходов", valueColor = FinikColor.GreenStat)
-                StatTile(value = SampleData.GOAL_TARGET.toString(), label = "цель Финика", valueColor = FinikColor.RedStat)
+                StatTile(value = "нужное", label = "еда и вода", valueColor = FinikColor.GreenStat)
+                StatTile(value = "желаемое", label = "игры, можно ждать", valueColor = FinikColor.RedStat)
+                StatTile(value = "копилка", label = "на мечту", valueColor = FinikColor.CoinInk40)
             }
             PrimaryButton(
                 text = "Создать питомца",
@@ -107,7 +106,7 @@ private fun RowScope.StatTile(value: String, label: String, valueColor: Color) {
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(text = value, style = unbounded(22, lineHeight = 1), color = valueColor)
+        Text(text = value, style = nunito(14, FontWeight.ExtraBold, lineHeight = 1.15), color = valueColor)
         Text(text = label, style = nunito(12), color = FinikColor.Text48)
     }
 }

@@ -18,11 +18,16 @@ class AndroidFeatureConventionPlugin : Plugin<Project> {
             dependencies {
                 "implementation"(project(":core:designsystem"))
                 "implementation"(project(":core:navigation"))
+                "implementation"(project(":core:model"))
+                "implementation"(project(":core:data"))
 
                 "implementation"(libs.findLibrary("androidx-activity-compose").get())
                 "implementation"(libs.findLibrary("androidx-navigation-compose").get())
                 "implementation"(libs.findLibrary("androidx-lifecycle-runtime-compose").get())
+                "implementation"(libs.findLibrary("androidx-lifecycle-viewmodel-compose").get())
+                "implementation"(libs.findLibrary("androidx-lifecycle-viewmodel-ktx").get())
                 "implementation"(libs.findLibrary("kotlinx-serialization-json").get())
+                "implementation"(libs.findLibrary("koin-compose").get())
             }
         }
     }

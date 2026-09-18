@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.model.PetMood
+import dev.bober.finik.core.model.PetPotStyle
 import dev.bober.finik.core.model.PetSpecies
 
 /**
@@ -108,6 +109,7 @@ fun PetFigure(
     spec: PetFigureSpec,
     modifier: Modifier = Modifier,
     mood: PetMood? = null,
+    potStyle: PetPotStyle = PetPotStyle.CLAY,
     animate: Boolean = true,
 ) {
     val look = species.look
@@ -121,7 +123,7 @@ fun PetFigure(
                 .align(Alignment.BottomCenter)
                 .size(spec.potWidth, spec.potHeight)
                 .background(
-                    FinikColor.Pot,
+                    potStyle.color,
                     RoundedCornerShape(
                         topStart = spec.potTopRadius, topEnd = spec.potTopRadius,
                         bottomEnd = spec.potBottomRadius, bottomStart = spec.potBottomRadius,

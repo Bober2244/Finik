@@ -2,6 +2,7 @@ package dev.bober.finik.feature.goal
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.FinikCard
+import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
 import dev.bober.finik.core.designsystem.component.OutlineButton
 import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.component.ScreenTitle
@@ -46,37 +52,83 @@ import kotlin.math.ceil
 internal fun GoalScreen(
     modifier: Modifier = Modifier,
     goal: SavingsGoal = SampleData.goal,
+    goals: List<SavingsGoal> = SampleData.goals,
     plan: WeekPlan = SampleData.plan,
     history: List<HistoryWeek> = SampleData.history,
+    onDeposit: (Int) -> Unit = {},
+    onSelectGoal: (String) -> Unit = {},
+    onWithdraw: (Int) -> Unit = {},
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(FinikColor.Background)
-            .verticalScroll(rememberScrollState())
-            .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        ScreenTitle(text = "Мечта")
-        GoalCard(goal = goal, weeklySave = plan.entry(SpendCategory.SAVE).planned)
-        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+    var withdrawOpen by rememberSaveable { mutableStateOf(false) }
+    val weeklySave = plan.entry(SpendCategory.SAVE).planned
+    val weeksLeft = if (weeklySave > 0) ceil((goal.target - goal.saved) / weeklySave.toFloat()).toInt() else null
+    androidx.compose.foundation.layout.Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(FinikColor.Background)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ScreenTitle(text = "Мечта")
+            GoalCard(goal = goal, weeklySave = weeklySave)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                goals.forEach { option ->
+                    val selected = option.id == goal.id
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (selected) FinikColor.GreenSelected else FinikColor.Surface)
+                            .border(2.dp, if (selected) FinikColor.Green else FinikColor.Border, RoundedCornerShape(12.dp))
+                            .clickable { onSelectGoal(option.id) }
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(text = option.title, style = nunito(12, FontWeight.SemiBold, lineHeight = 1.25), color = FinikColor.Ink, maxLines = 3)
+                        Text(text = "${option.target}", style = nunito(12), color = FinikColor.Text50)
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                OutlineButton(
+                    text = "Отложить 5",
+                    onClick = { onDeposit(5) },
+                    modifier = Modifier.weight(1f),
+                    textStyle = nunito(15),
+                    borderColor = FinikColor.GreenBorderBtn,
+                )
+                PrimaryButton(
+                    text = "Отложить всё из копилки",
+                    onClick = { onDeposit(plan.entry(SpendCategory.SAVE).left.coerceAtLeast(0)) },
+                    modifier = Modifier.weight(1f),
+                    height = 52.dp,
+                    radius = 14.dp,
+                    textStyle = nunito(15),
+                )
+            }
             OutlineButton(
-                text = "Отложить 5",
-                onClick = { /* TODO(logic) */ },
-                modifier = Modifier.weight(1f),
-                textStyle = nunito(15),
-                borderColor = FinikColor.GreenBorderBtn,
+                text = "Снять 5 из копилки",
+                onClick = { withdrawOpen = true },
+                modifier = Modifier.fillMaxWidth(),
             )
-            PrimaryButton(
-                text = "Отложить всё из копилки",
-                onClick = { /* TODO(logic) */ },
-                modifier = Modifier.weight(1f),
-                height = 52.dp,
-                radius = 14.dp,
-                textStyle = nunito(15),
+            HistoryCard(history = history)
+        }
+        if (withdrawOpen) {
+            FinikConfirmSheet(
+                title = "Снять 5 из копилки?",
+                body = "Накопления станут ${ (goal.saved - 5).coerceAtLeast(0) }. " +
+                    if (weeksLeft != null) "Срок цели около ${weeksLeft + 1} нед." else "Без регулярного пополнения срок не считаем.",
+                confirmText = "Снять",
+                warning = true,
+                onConfirm = {
+                    onWithdraw(5)
+                    withdrawOpen = false
+                },
+                onDismiss = { withdrawOpen = false },
             )
         }
-        HistoryCard(history = history)
     }
 }
 

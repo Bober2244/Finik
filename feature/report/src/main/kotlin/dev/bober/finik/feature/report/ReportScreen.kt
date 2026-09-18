@@ -48,6 +48,8 @@ internal fun ReportScreen(
     modifier: Modifier = Modifier,
     week: Int = SampleData.REPORT_WEEK,
     rows: List<ReportRow> = SampleData.reportRows,
+    summary: String = SampleData.REPORT_SUMMARY,
+    note: String = SampleData.REPORT_NOTE,
 ) {
     Column(
         modifier = modifier
@@ -65,7 +67,7 @@ internal fun ReportScreen(
         FinikCard(radius = 20.dp, contentPadding = PaddingValues(16.dp), gap = 14.dp) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(text = "Неделя $week закрыта", style = unbounded(19, lineHeight = 1.15), color = FinikColor.Ink)
-                Text(text = SampleData.REPORT_SUMMARY, style = nunito(12.5), color = FinikColor.Text50)
+                Text(text = summary, style = nunito(12.5), color = FinikColor.Text50)
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -73,7 +75,7 @@ internal fun ReportScreen(
             }
 
             Text(
-                text = SampleData.REPORT_NOTE,
+                text = note,
                 style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.45),
                 color = FinikColor.RedNoteInk,
                 modifier = Modifier

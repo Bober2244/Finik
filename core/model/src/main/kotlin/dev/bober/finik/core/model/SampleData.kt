@@ -2,7 +2,7 @@ package dev.bober.finik.core.model
 
 /**
  * Данные-заглушка, повторяющие начальное состояние прототипа «Финик 8–11».
- * Нужны, чтобы экраны выглядели как в макете до появления логики и хранилища.
+ * Нужны для превью Compose; живое состояние приходит из FinikRepository.
  */
 object SampleData {
 
@@ -13,8 +13,10 @@ object SampleData {
     val pet = PetProfile(
         name = "Финик",
         species = PetSpecies.FINIK,
+        potStyle = PetPotStyle.CLAY,
         stageIndex = 2,
         xp = 55,
+        totalXp = 255,
         mood = PetMood.OKAY,
         moodNote = "Финик скучает. Проверь, в какой статье остались монеты.",
         dayOfWeek = 3,
@@ -50,11 +52,12 @@ object SampleData {
     val incomeOptions: List<Pair<Int, String>> = listOf(20 to "сложно", 40 to "обычно", 60 to "легко")
 
     val tasks: List<TaskItem> = listOf(
-        TaskItem("q1", "Мини-урок: цена и скидка", "3 вопроса", TaskKind.LESSON, reward = 6, done = false, target = TaskTarget.QUIZ),
-        TaskItem("t2", "Отложи 10 монет до конца недели", "осталось 4 дня", TaskKind.WEEK, reward = 8, done = false, target = TaskTarget.GOAL),
-        TaskItem("t3", "Уложись в план по еде", "потрачено 6 из 14", TaskKind.WEEK, reward = 10, done = false, target = TaskTarget.PLAN),
-        TaskItem("t4", "Заходи 7 дней подряд", "3 из 7", TaskKind.HABIT, reward = 5, done = false),
-        TaskItem("t5", "Купи что-то со скидкой", "в лавке есть −40%", TaskKind.DAY, reward = 4, done = true, target = TaskTarget.SHOP),
+        TaskItem("s-plan-1", "Нужное, желаемое или копилка", "ситуация", TaskKind.LESSON, 6, false, TaskTarget.SCENARIO, TaskTheme.PLAN),
+        TaskItem("s-plan-2", "Сколько отложить 20%", "ситуация", TaskKind.LESSON, 6, false, TaskTarget.SCENARIO, TaskTheme.PLAN),
+        TaskItem("s-save-1", "Игрушка сейчас или цель", "ситуация", TaskKind.WEEK, 8, false, TaskTarget.SCENARIO, TaskTheme.SAVE),
+        TaskItem("s-save-2", "Снять из копилки?", "ситуация", TaskKind.WEEK, 6, false, TaskTarget.SCENARIO, TaskTheme.SAVE),
+        TaskItem("q1", "Мини-урок: цена и скидка", "3 вопроса", TaskKind.LESSON, 6, false, TaskTarget.QUIZ, TaskTheme.BUY),
+        TaskItem("s-buy-1", "Не хватает монет. Что делать?", "ситуация", TaskKind.DAY, 6, false, TaskTarget.SCENARIO, TaskTheme.BUY),
     )
 
     val quiz: List<QuizQuestion> = listOf(
@@ -79,15 +82,23 @@ object SampleData {
     )
 
     val shop: List<ShopItem> = listOf(
-        ShopItem("s1", "Вода, 3 дня", cost = 3, category = SpendCategory.WATER, glyph = ItemGlyph.CIRCLE),
-        ShopItem("s2", "Витамины", cost = 6, oldCost = 10, category = SpendCategory.FOOD, glyph = ItemGlyph.ROUNDED),
-        ShopItem("s3", "Корм на неделю", cost = 12, category = SpendCategory.FOOD, glyph = ItemGlyph.POT),
-        ShopItem("s4", "Мячик", cost = 3, oldCost = 5, category = SpendCategory.PLAY, glyph = ItemGlyph.CIRCLE),
-        ShopItem("s5", "Новый горшок", cost = 18, category = SpendCategory.PLAY, glyph = ItemGlyph.TALL_POT),
-        ShopItem("s6", "Лейка получше", cost = 8, oldCost = 11, category = SpendCategory.WATER, glyph = ItemGlyph.BUCKET),
+        ShopItem("s1", "Вода, 3 дня", cost = 3, category = SpendCategory.WATER, glyph = ItemGlyph.CIRCLE, kind = SpendKind.REQUIRED, effect = "Финик будет меньше хотеть пить."),
+        ShopItem("s2", "Витамины", cost = 6, oldCost = 10, category = SpendCategory.FOOD, glyph = ItemGlyph.ROUNDED, kind = SpendKind.REQUIRED, effect = "Финик станет сытее."),
+        ShopItem("s3", "Корм на неделю", cost = 12, category = SpendCategory.FOOD, glyph = ItemGlyph.POT, kind = SpendKind.REQUIRED, effect = "Финик будет сыт дольше."),
+        ShopItem("s4", "Мячик", cost = 3, oldCost = 5, category = SpendCategory.PLAY, glyph = ItemGlyph.CIRCLE, kind = SpendKind.OPTIONAL, effect = "Финик повеселеет. Это желаемое, можно подождать."),
+        ShopItem("s5", "Новый горшок", cost = 18, category = SpendCategory.PLAY, glyph = ItemGlyph.TALL_POT, kind = SpendKind.OPTIONAL, effect = "Красиво, но не обязательно на этой неделе."),
+        ShopItem("s6", "Лейка получше", cost = 8, oldCost = 11, category = SpendCategory.WATER, glyph = ItemGlyph.BUCKET, kind = SpendKind.REQUIRED, effect = "Поливать станет проще."),
+        ShopItem("s7", "Бантик", cost = 4, category = SpendCategory.PLAY, glyph = ItemGlyph.CIRCLE, kind = SpendKind.OPTIONAL, effect = "Украшение. Можно перенести."),
+        ShopItem("s8", "Качели", cost = 9, category = SpendCategory.PLAY, glyph = ItemGlyph.ROUNDED, kind = SpendKind.OPTIONAL, effect = "Много радости, но это не еда и не вода."),
     )
 
-    val goal = SavingsGoal(title = "Солнечное окно и большой горшок", target = GOAL_TARGET, saved = 62)
+    val goals: List<SavingsGoal> = listOf(
+        SavingsGoal("g1", "Солнечное окно и большой горшок", GOAL_TARGET, 0),
+        SavingsGoal("g2", "Набор красок для горшка", 60, 0),
+        SavingsGoal("g3", "Полка у окна", 100, 0),
+    )
+
+    val goal = goals.first().copy(saved = 62)
 
     val history: List<HistoryWeek> = listOf(
         HistoryWeek("н1", 6, HistoryTone.LOW, barHeight = 30),
@@ -118,7 +129,6 @@ object SampleData {
     const val WEEKS_DONE = 4
     const val SOUND_ON = true
 
-    /** Отчёт «Неделя 4 закрыта» (вариант 2c). */
     const val REPORT_WEEK = 4
     val reportRows: List<ReportRow> = listOf(
         ReportRow(SpendCategory.FOOD, planned = 16, actual = 18),
@@ -127,4 +137,28 @@ object SampleData {
     )
     const val REPORT_SUMMARY = "План 40 · потрачено 33 · отложено 7"
     const val REPORT_NOTE = "Еда вышла за план на 2 монеты — пришлось взять из копилки. Финик вырос медленнее."
+
+    val snapshot: GameSnapshot = GameSnapshot(
+        onboarded = true,
+        pet = pet,
+        plan = plan,
+        planConfirmed = true,
+        needs = needs,
+        care = careActions,
+        streak = streakDays,
+        tasks = tasks,
+        shop = shop,
+        goals = listOf(goal) + goals.drop(1),
+        selectedGoalId = "g1",
+        history = history,
+        weekLog = weekLog,
+        badges = badges,
+        report = WeekReport(REPORT_WEEK, reportRows, REPORT_SUMMARY, REPORT_NOTE),
+        demoMode = true,
+        soundOn = SOUND_ON,
+        earnedTotal = EARNED_TOTAL,
+        weeksDone = WEEKS_DONE,
+        saleBuys = 6,
+        weeksOnTrack = 3,
+    )
 }

@@ -27,11 +27,14 @@ rootProject.name = "Finik"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 include(":app")
 
-// Core: общие модули без бизнес-логики (модели, дизайн-система, навигация, слот 3D-питомца).
+// Core: модели, дизайн, навигация, слот питомца, данные (Room / Ktor / экономика).
 include(":core:model")
 include(":core:designsystem")
 include(":core:navigation")
 include(":core:pet")
+include(":core:database")
+include(":core:network")
+include(":core:data")
 
 // Feature: по одному модулю на экран/флоу. Каждый feature зависит только от core-модулей.
 include(":feature:onboarding")

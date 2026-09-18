@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,7 +37,9 @@ import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.chipBackground
 import dev.bober.finik.core.designsystem.theme.chipInk
 import dev.bober.finik.core.designsystem.theme.nunito
+import dev.bober.finik.core.model.QuizQuestion
 import dev.bober.finik.core.model.SampleData
+import dev.bober.finik.core.model.ScenarioTask
 import dev.bober.finik.core.model.TaskItem
 import dev.bober.finik.core.model.TaskKind
 import dev.bober.finik.core.model.TaskTarget
@@ -49,8 +52,12 @@ internal fun TasksScreen(
     onOpenShop: () -> Unit,
     modifier: Modifier = Modifier,
     tasks: List<TaskItem> = SampleData.tasks,
+    quiz: List<QuizQuestion> = SampleData.quiz,
+    scenarios: List<ScenarioTask> = emptyList(),
+    onComplete: (taskId: String, correct: Boolean, reward: Int) -> Unit = { _, _, _ -> },
 ) {
-    var quizOpen by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    var quizTaskId by rememberSaveable { mutableStateOf<String?>(null) }
+    var scenarioId by rememberSaveable { mutableStateOf<String?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -80,22 +87,42 @@ internal fun TasksScreen(
                     task = task,
                     onClick = {
                         when (task.target) {
-                            TaskTarget.QUIZ -> quizOpen = true
+                            TaskTarget.QUIZ -> quizTaskId = task.id
+                            TaskTarget.SCENARIO -> scenarioId = task.id
                             TaskTarget.PLAN -> onOpenPlan()
                             TaskTarget.GOAL -> onOpenGoal()
                             TaskTarget.SHOP -> onOpenShop()
-                            null -> Unit // TODO(logic): выполнить задание на месте
+                            null -> Unit
                         }
                     },
                 )
             }
         }
 
-        if (quizOpen) {
+        if (quizTaskId != null) {
+            val task = tasks.first { it.id == quizTaskId }
             QuizSheet(
-                questions = SampleData.quiz,
-                onClose = { quizOpen = false },
+                questions = quiz,
+                onClose = { quizTaskId = null },
+                onComplete = { correct ->
+                    onComplete(task.id, correct, task.reward)
+                    quizTaskId = null
+                },
             )
+        }
+        scenarioId?.let { id ->
+            val task = tasks.first { it.id == id }
+            val scenario = scenarios.firstOrNull { it.id == id }
+            if (scenario != null) {
+                ScenarioSheet(
+                    scenario = scenario,
+                    onClose = { scenarioId = null },
+                    onComplete = { correct ->
+                        onComplete(task.id, correct, task.reward)
+                        scenarioId = null
+                    },
+                )
+            }
         }
     }
 }

@@ -38,6 +38,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.BackHeader
 import dev.bober.finik.core.designsystem.component.FinikCard
+import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
@@ -49,12 +50,25 @@ import dev.bober.finik.core.model.SampleData
 internal fun ProfileScreen(
     onBack: () -> Unit,
     onOpenBadges: () -> Unit,
+    onOpenAdult: () -> Unit,
     modifier: Modifier = Modifier,
+    earnedTotal: Int = SampleData.EARNED_TOTAL,
+    savedTotal: Int = SampleData.SAVED_TOTAL,
+    weeksDone: Int = SampleData.WEEKS_DONE,
+    income: Int = SampleData.WEEKLY_INCOME,
+    soundOn: Boolean = SampleData.SOUND_ON,
+    badgesDone: Int = SampleData.badges.count { it.isDone },
+    badgesTotal: Int = SampleData.badges.size,
+    onIncome: (Int) -> Unit = {},
+    onSound: (Boolean) -> Unit = {},
+    onReset: () -> Unit = {},
 ) {
-    var income by rememberSaveable { mutableIntStateOf(SampleData.WEEKLY_INCOME) }
-    var soundOn by rememberSaveable { mutableStateOf(SampleData.SOUND_ON) }
-    val badgesDone = SampleData.badges.count { it.isDone }
+    var showReset by rememberSaveable { mutableStateOf(false) }
+    var gateOpen by rememberSaveable { mutableStateOf(false) }
+    val gateA = 7
+    val gateB = 8
 
+    Box(modifier = modifier.fillMaxSize()) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -71,15 +85,15 @@ internal fun ProfileScreen(
             horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             StatTile(
-                value = SampleData.EARNED_TOTAL.toString(), label = "монет заработано",
+                value = earnedTotal.toString(), label = "монет заработано",
                 background = FinikColor.CoinChip, valueColor = FinikColor.CoinInk36, labelColor = FinikColor.CoinInk46,
             )
             StatTile(
-                value = SampleData.SAVED_TOTAL.toString(), label = "отложено всего",
+                value = savedTotal.toString(), label = "отложено всего",
                 background = FinikColor.GreenCard, valueColor = FinikColor.GreenInk34, labelColor = FinikColor.GreenInk42s,
             )
             StatTile(
-                value = SampleData.WEEKS_DONE.toString(), label = "недель с планом",
+                value = weeksDone.toString(), label = "недель с планом",
                 background = FinikColor.ChipStat, valueColor = FinikColor.TextWarm38, labelColor = FinikColor.Text48,
             )
         }
@@ -88,7 +102,7 @@ internal fun ProfileScreen(
             Text(text = "Доход в неделю", style = nunito(14.5), color = FinikColor.Ink)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SampleData.incomeOptions.forEach { (value, label) ->
-                    IncomeOption(value = value, label = label, selected = income == value, onClick = { income = value })
+                    IncomeOption(value = value, label = label, selected = income == value, onClick = { onIncome(value) })
                 }
             }
         }
@@ -99,7 +113,7 @@ internal fun ProfileScreen(
             onClick = onOpenBadges,
         ) {
             Text(
-                text = "$badgesDone/${SampleData.badges.size}",
+                text = "$badgesDone/$badgesTotal",
                 style = nunito(14, FontWeight.ExtraBold),
                 color = FinikColor.Text46,
             )
@@ -108,7 +122,7 @@ internal fun ProfileScreen(
         SettingsRow(
             icon = { Box(modifier = Modifier.size(30.dp).background(FinikColor.Sound, CircleShape)) },
             title = "Звуки и подсказки",
-            onClick = { soundOn = !soundOn },
+            onClick = { onSound(!soundOn) },
         ) {
             Toggle(on = soundOn)
         }
@@ -118,8 +132,44 @@ internal fun ProfileScreen(
             title = "Начать заново",
             titleColor = FinikColor.RedReset,
             borderColor = FinikColor.RedBorderReset,
-            onClick = { /* TODO(logic): сброс прогресса */ },
+            onClick = { showReset = true },
         )
+
+        SettingsRow(
+            icon = { Box(modifier = Modifier.size(30.dp).background(FinikColor.Green, RoundedCornerShape(9.dp))) },
+            title = "Раздел для взрослых",
+            onClick = { gateOpen = true },
+        ) {
+            Text(text = "7+8", style = nunito(12), color = FinikColor.Text50)
+        }
+    }
+
+    if (showReset) {
+        FinikConfirmSheet(
+            title = "Начать заново?",
+            body = "Профиль, монеты и прогресс сотрутся.",
+            confirmText = "Сбросить",
+            warning = true,
+            onConfirm = {
+                showReset = false
+                onReset()
+            },
+            onDismiss = { showReset = false },
+        )
+    }
+    if (gateOpen) {
+        FinikConfirmSheet(
+            title = "Сколько будет $gateA + $gateB?",
+            body = "Барьер для взрослого. Нажми правильную сумму.",
+            confirmText = "${gateA + gateB}",
+            cancelText = "${gateA + gateB + 4}",
+            onConfirm = {
+                gateOpen = false
+                onOpenAdult()
+            },
+            onDismiss = { gateOpen = false },
+        )
+    }
     }
 }
 
@@ -209,5 +259,5 @@ private fun Toggle(on: Boolean) {
 @Preview(showBackground = true, widthDp = 412, heightDp = 900)
 @Composable
 private fun ProfileScreenPreview() {
-    FinikTheme { ProfileScreen(onBack = {}, onOpenBadges = {}) }
+    FinikTheme { ProfileScreen(onBack = {}, onOpenBadges = {}, onOpenAdult = {}) }
 }

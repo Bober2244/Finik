@@ -29,17 +29,26 @@ import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.designsystem.theme.unbounded
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import dev.bober.finik.core.designsystem.component.PrimaryButton
+import dev.bober.finik.core.model.PetPotStyle
 import dev.bober.finik.core.model.PetSpecies
-import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.pet.PetFigure
 import dev.bober.finik.core.pet.PetFigureSpec
 
 /** Шаг 1 из 2: список из трёх ростков с чертой и бонусом. */
 @Composable
 internal fun PickPetScreen(
-    onPick: (PetSpecies) -> Unit,
+    onPick: (PetSpecies, PetPotStyle) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var species by rememberSaveable { mutableStateOf(PetSpecies.FINIK.name) }
+    var pot by rememberSaveable { mutableStateOf(PetPotStyle.CLAY.name) }
+    val selected = runCatching { PetSpecies.valueOf(species) }.getOrDefault(PetSpecies.FINIK)
+    val potStyle = runCatching { PetPotStyle.valueOf(pot) }.getOrDefault(PetPotStyle.CLAY)
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -54,13 +63,37 @@ internal fun PickPetScreen(
             Text(text = "Выбери росток", style = unbounded(23, lineHeight = 1.15), color = FinikColor.Ink)
         }
 
-        PetSpecies.entries.forEach { species ->
+        PetSpecies.entries.forEach { item ->
             PetOptionCard(
-                species = species,
-                selected = species == SampleData.pet.species,
-                onClick = { onPick(species) },
+                species = item,
+                selected = item == selected,
+                onClick = { species = item.name },
             )
         }
+        Text(text = "Цвет горшка — так получится 9 разных питомцев.", style = nunito(13, FontWeight.SemiBold), color = FinikColor.Text50)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PetPotStyle.entries.forEach { style ->
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (style == potStyle) FinikColor.GreenSelected else FinikColor.Surface)
+                        .border(2.dp, if (style == potStyle) FinikColor.Green else FinikColor.Border, RoundedCornerShape(14.dp))
+                        .clickable { pot = style.name }
+                        .padding(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    PetFigure(species = selected, spec = PetFigureSpec.Card, potStyle = style, animate = false)
+                    Text(text = style.title, style = nunito(12), color = FinikColor.Ink)
+                }
+            }
+        }
+        PrimaryButton(
+            text = "Дальше",
+            onClick = { onPick(selected, potStyle) },
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         Spacer(modifier = Modifier.weight(1f))
         Text(
@@ -112,5 +145,5 @@ private fun PetOptionCard(
 @Preview(showBackground = true, widthDp = 412, heightDp = 828)
 @Composable
 private fun PickPetPreview() {
-    FinikTheme { PickPetScreen(onPick = {}) }
+    FinikTheme { PickPetScreen(onPick = { _, _ -> }) }
 }

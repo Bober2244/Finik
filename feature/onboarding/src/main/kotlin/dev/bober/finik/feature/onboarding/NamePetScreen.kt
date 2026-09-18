@@ -42,6 +42,7 @@ import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.designsystem.theme.unbounded
+import dev.bober.finik.core.model.PetPotStyle
 import dev.bober.finik.core.model.PetSpecies
 import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.pet.PetFigure
@@ -50,9 +51,10 @@ import dev.bober.finik.core.pet.PetFigureSpec
 /** Шаг 2 из 2: имя питомца и недельный доход (20 / 40 / 60 монет). */
 @Composable
 internal fun NamePetScreen(
-    onFinish: () -> Unit,
+    onFinish: (name: String, income: Int) -> Unit,
     modifier: Modifier = Modifier,
-    species: PetSpecies = SampleData.pet.species,
+    species: PetSpecies = PetSpecies.FINIK,
+    potStyle: PetPotStyle = PetPotStyle.CLAY,
 ) {
     var name by rememberSaveable { mutableStateOfString() }
     var income by rememberSaveable { mutableStateOfInt(SampleData.WEEKLY_INCOME) }
@@ -73,7 +75,7 @@ internal fun NamePetScreen(
         }
 
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            PetFigure(species = species, spec = PetFigureSpec.Naming)
+            PetFigure(species = species, spec = PetFigureSpec.Naming, potStyle = potStyle)
         }
 
         NameField(value = name, onValueChange = { name = it })
@@ -98,7 +100,12 @@ internal fun NamePetScreen(
         }
 
         Spacer(modifier = Modifier.weight(1f))
-        PrimaryButton(text = "Начать неделю", onClick = onFinish, modifier = Modifier.fillMaxWidth())
+        PrimaryButton(
+            text = "Начать неделю",
+            onClick = { onFinish(name.ifBlank { species.title }, income) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = name.isNotBlank(),
+        )
     }
 }
 
@@ -163,5 +170,5 @@ private fun mutableStateOfInt(value: Int) = androidx.compose.runtime.mutableIntS
 @Preview(showBackground = true, widthDp = 412, heightDp = 828)
 @Composable
 private fun NamePetPreview() {
-    FinikTheme { NamePetScreen(onFinish = {}) }
+    FinikTheme { NamePetScreen(onFinish = { _, _ -> }) }
 }

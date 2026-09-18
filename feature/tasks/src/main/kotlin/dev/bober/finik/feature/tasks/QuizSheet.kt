@@ -47,9 +47,11 @@ internal fun QuizSheet(
     questions: List<QuizQuestion>,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onComplete: (correct: Boolean) -> Unit = {},
 ) {
     var step by rememberSaveable { mutableIntStateOf(0) }
     var picked by rememberSaveable { mutableIntStateOf(-1) }
+    var wrong by rememberSaveable { mutableIntStateOf(0) }
     val question = questions[step]
 
     BackHandler(onBack = onClose)
@@ -119,11 +121,13 @@ internal fun QuizSheet(
                     },
                     onClick = {
                         if (picked < 0) {
+                            if (index != question.rightIndex) wrong += 1
                             picked = index
                         } else if (step < questions.lastIndex) {
                             step += 1
                             picked = -1
                         } else {
+                            onComplete(wrong == 0)
                             onClose()
                         }
                     },

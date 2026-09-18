@@ -34,16 +34,22 @@ fun PrimaryButton(
     textStyle: TextStyle = nunito(17),
     containerColor: Color = FinikColor.Green,
     contentColor: Color = Color.White,
+    enabled: Boolean = true,
 ) {
     Box(
         modifier = modifier
             .height(height)
             .clip(RoundedCornerShape(radius))
-            .background(containerColor)
-            .clickable(onClick = onClick),
+            .background(if (enabled) containerColor else FinikColor.DisabledButton)
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = text, style = textStyle, color = contentColor, textAlign = TextAlign.Center)
+        Text(
+            text = text,
+            style = textStyle,
+            color = if (enabled) contentColor else FinikColor.Text56,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

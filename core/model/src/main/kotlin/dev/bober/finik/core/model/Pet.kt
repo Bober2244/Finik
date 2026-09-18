@@ -27,6 +27,13 @@ enum class PetSpecies(
     ),
 }
 
+/** Цвет горшка: 3 вида × 3 горшка = 9 различимых комбинаций (минимум ТЗ). */
+enum class PetPotStyle(val title: String) {
+    CLAY(title = "глиняный"),
+    SKY(title = "небесный"),
+    SUN(title = "солнечный"),
+}
+
 enum class PetMood(val label: String) {
     HAPPY(label = "доволен"),
     OKAY(label = "в порядке"),
@@ -53,17 +60,30 @@ val growthStages: List<GrowthStage> = listOf(
     GrowthStage(name = "Дерево", note = "Мечта собрана", requiredXp = 400),
 )
 
+fun stageIndexFor(totalXp: Int): Int =
+    growthStages.indexOfLast { totalXp >= it.requiredXp }.coerceAtLeast(0)
+
+fun xpPercentInStage(totalXp: Int): Int {
+    val index = stageIndexFor(totalXp)
+    val current = growthStages[index].requiredXp
+    val next = growthStages.getOrNull(index + 1)?.requiredXp ?: (current + 100)
+    val span = (next - current).coerceAtLeast(1)
+    return ((totalXp - current) * 100 / span).coerceIn(0, 100)
+}
+
 /** Текущее состояние питомца. */
 data class PetProfile(
     val name: String,
     val species: PetSpecies,
+    val potStyle: PetPotStyle = PetPotStyle.CLAY,
     val stageIndex: Int,
     val xp: Int,
+    val totalXp: Int = xp,
     val mood: PetMood,
     val moodNote: String,
     val dayOfWeek: Int,
 ) {
-    val stage: GrowthStage get() = growthStages[stageIndex]
+    val stage: GrowthStage get() = growthStages[stageIndex.coerceIn(growthStages.indices)]
 }
 
 data class NeedLevel(val category: SpendCategory, val percent: Int)

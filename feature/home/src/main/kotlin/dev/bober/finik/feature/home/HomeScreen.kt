@@ -31,6 +31,7 @@ import dev.bober.finik.core.designsystem.component.FinikCard
 import dev.bober.finik.core.designsystem.component.FinikProgressBar
 import dev.bober.finik.core.designsystem.component.GradientCard
 import dev.bober.finik.core.designsystem.component.LinkButton
+import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.component.SegmentedBar
 import dev.bober.finik.core.designsystem.component.ShapeDot
 import dev.bober.finik.core.designsystem.component.TitleRow
@@ -63,6 +64,16 @@ internal fun HomeScreen(
     plan: WeekPlan = SampleData.plan,
     care: List<CareAction> = SampleData.careActions,
     streak: List<StreakDay> = SampleData.streakDays,
+    planConfirmed: Boolean = true,
+    demoMode: Boolean = true,
+    goalTitle: String = SampleData.goal.title,
+    goalSaved: Int = SampleData.goal.saved,
+    goalTarget: Int = SampleData.goal.target,
+    activeTask: String? = SampleData.tasks.first().title,
+    onCare: (SpendCategory) -> Unit = {},
+    onOpenGoal: () -> Unit = {},
+    onOpenTasks: () -> Unit = {},
+    onCloseWeek: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -73,9 +84,32 @@ internal fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         HeroCard(pet = pet, needs = needs)
-        CareRow(actions = care, plan = plan)
+        CareRow(actions = care, plan = plan, planConfirmed = planConfirmed, onCare = onCare)
+        SnapshotRow(
+            saved = goalSaved,
+            target = goalTarget,
+            title = goalTitle,
+            task = activeTask,
+            onOpenGoal = onOpenGoal,
+            onOpenTasks = onOpenTasks,
+        )
         PlanCard(plan = plan, onEdit = onOpenPlan)
         StreakCard(days = streak)
+        if (demoMode && planConfirmed) {
+            PrimaryButton(
+                text = "Закрыть неделю",
+                onClick = onCloseWeek,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else if (!planConfirmed) {
+            FinikCard(background = FinikColor.CoinChip, borderColor = null) {
+                Text(
+                    text = "Сначала разложи ${plan.freeCoins} свободных монет в плане: нужное, желаемое, копилка.",
+                    style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4),
+                    color = FinikColor.CoinInk42,
+                )
+            }
+        }
     }
 }
 
@@ -91,6 +125,7 @@ private fun HeroCard(pet: PetProfile, needs: List<NeedLevel>) {
                 species = pet.species,
                 spec = PetFigureSpec.hero(pet.stageIndex),
                 mood = pet.mood,
+                potStyle = pet.potStyle,
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -129,18 +164,28 @@ private fun HeroCard(pet: PetProfile, needs: List<NeedLevel>) {
 }
 
 @Composable
-private fun CareRow(actions: List<CareAction>, plan: WeekPlan) {
+private fun CareRow(
+    actions: List<CareAction>,
+    plan: WeekPlan,
+    planConfirmed: Boolean,
+    onCare: (SpendCategory) -> Unit,
+) {
     Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
         actions.forEach { action ->
             val left = plan.entry(action.category).left
-            val canAfford = left >= action.cost
-            CareButton(action = action, left = left, enabled = canAfford)
+            val canAfford = planConfirmed && left >= action.cost
+            CareButton(action = action, left = left, enabled = canAfford, onClick = { onCare(action.category) })
         }
     }
 }
 
 @Composable
-private fun RowScope.CareButton(action: CareAction, left: Int, enabled: Boolean) {
+private fun RowScope.CareButton(
+    action: CareAction,
+    left: Int,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
     val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = Modifier
@@ -149,7 +194,7 @@ private fun RowScope.CareButton(action: CareAction, left: Int, enabled: Boolean)
             .clip(shape)
             .background(if (enabled) FinikColor.Surface else FinikColor.SurfaceSoft)
             .border(1.dp, if (enabled) FinikColor.Border else FinikColor.RedBorderCare, shape)
-            .clickable { /* TODO(logic): уход за питомцем */ }
+            .clickable(onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
@@ -161,6 +206,43 @@ private fun RowScope.CareButton(action: CareAction, left: Int, enabled: Boolean)
             style = nunito(11.5),
             color = if (enabled) FinikColor.Text48 else FinikColor.RedCost,
         )
+    }
+}
+
+@Composable
+private fun SnapshotRow(
+    saved: Int,
+    target: Int,
+    title: String,
+    task: String?,
+    onOpenGoal: () -> Unit,
+    onOpenTasks: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        FinikCard(
+            modifier = Modifier.weight(1f).clickable(onClick = onOpenGoal),
+            radius = 16.dp,
+            background = FinikColor.GreenCard,
+            borderColor = null,
+            gap = 6.dp,
+        ) {
+            Text(text = "Копилка", style = nunito(12), color = FinikColor.GreenInk42)
+            Text(text = "$saved / $target", style = unbounded(18, lineHeight = 1), color = FinikColor.GreenInk34)
+            Text(text = title, style = nunito(12, FontWeight.SemiBold, lineHeight = 1.3), color = FinikColor.GreenInk40s, maxLines = 2)
+        }
+        FinikCard(
+            modifier = Modifier.weight(1f).clickable(onClick = onOpenTasks),
+            radius = 16.dp,
+            gap = 6.dp,
+        ) {
+            Text(text = "Задание", style = nunito(12), color = FinikColor.Text50)
+            Text(
+                text = task ?: "Все задания сделаны",
+                style = nunito(14, FontWeight.SemiBold, lineHeight = 1.3),
+                color = FinikColor.Ink,
+                maxLines = 3,
+            )
+        }
     }
 }
 

@@ -22,20 +22,18 @@ import dev.bober.finik.feature.report.navigation.navigateToReport
 import dev.bober.finik.feature.report.navigation.reportScreen
 import dev.bober.finik.feature.shop.navigation.navigateToShop
 import dev.bober.finik.feature.shop.navigation.shopScreen
+import dev.bober.finik.feature.tasks.navigation.navigateToTasks
 import dev.bober.finik.feature.tasks.navigation.tasksScreen
 
-/**
- * Единственное место, где feature-модули «сшиваются»: каждый экран регистрируется
- * своей extension-функцией, а переходы между модулями передаются колбэками.
- */
 @Composable
 fun FinikNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    startOnboarding: Boolean = true,
 ) {
     NavHost(
         navController = navController,
-        startDestination = OnboardingGraph,
+        startDestination = if (startOnboarding) OnboardingGraph else HomeRoute,
         modifier = modifier,
         enterTransition = FinikTransitions.enter,
         exitTransition = FinikTransitions.exit,
@@ -45,7 +43,6 @@ fun FinikNavHost(
         onboardingGraph(
             navController = navController,
             onFinished = {
-                // Главный экран становится корнем стека, онбординг убирается.
                 navController.navigateToHome(
                     navOptions { popUpTo<OnboardingGraph> { inclusive = true } },
                 )
@@ -54,6 +51,9 @@ fun FinikNavHost(
 
         homeScreen(
             onOpenPlan = { navController.navigateToPlan(topLevelNavOptions<HomeRoute>()) },
+            onOpenGoal = { navController.navigateToGoal(topLevelNavOptions<HomeRoute>()) },
+            onOpenTasks = { navController.navigateToTasks(topLevelNavOptions<HomeRoute>()) },
+            onCloseWeek = { navController.navigateToReport() },
         )
         planScreen()
         tasksScreen(

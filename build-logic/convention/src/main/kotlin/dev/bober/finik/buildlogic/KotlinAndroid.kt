@@ -8,7 +8,7 @@ import org.gradle.api.Project
 internal fun Project.configureKotlinAndroid(commonExtension: CommonExtension) {
     commonExtension.apply {
         compileSdk = 37
-        defaultConfig.minSdk = 30
+        defaultConfig.minSdk = 26
 
         // AGP 9 использует встроенный Kotlin: jvmTarget выравнивается по targetCompatibility.
         compileOptions.sourceCompatibility = JavaVersion.VERSION_17
