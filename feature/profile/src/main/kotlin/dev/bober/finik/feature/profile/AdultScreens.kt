@@ -9,10 +9,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.BackHeader
 import dev.bober.finik.core.designsystem.component.FinikCard
@@ -50,6 +59,9 @@ internal fun HelpScreen(
             FinikCard(gap = 6.dp) {
                 Text(text = term.term, style = nunito(15), color = FinikColor.Ink)
                 Text(text = term.meaning, style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4), color = FinikColor.Text46)
+                if (term.example.isNotBlank()) {
+                    Text(text = term.example, style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4), color = FinikColor.Text42)
+                }
             }
         }
     }
@@ -65,7 +77,7 @@ internal fun AdultScreen(
     demoMode: Boolean,
     onBack: () -> Unit,
     onToggleDemo: (Boolean) -> Unit,
-    onBonus: () -> Unit,
+    onBonus: (String) -> Unit,
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -105,9 +117,27 @@ internal fun AdultScreen(
         ) {
             ToggleLite(on = demoMode)
         }
+        var pin by rememberSaveable { mutableStateOf("") }
+        FinikCard(gap = 8.dp) {
+            Text(text = "Код родителя", style = nunito(15), color = FinikColor.Ink)
+            Text(
+                text = "Нужен, чтобы начислить премию через сервер. Без кода монеты добавятся только в офлайне.",
+                style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4),
+                color = FinikColor.Text46,
+            )
+            TextField(
+                value = pin,
+                onValueChange = { pin = it.filter { ch -> ch.isLetterOrDigit() }.take(16) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                colors = TextFieldDefaults.colors(),
+            )
+        }
         PrimaryButton(
             text = "Добавить 10 монет поддержки",
-            onClick = onBonus,
+            onClick = { onBonus(pin) },
             modifier = Modifier.fillMaxWidth(),
         )
         SettingsRow(

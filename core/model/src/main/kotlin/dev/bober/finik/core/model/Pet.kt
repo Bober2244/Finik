@@ -82,6 +82,9 @@ data class PetProfile(
     val mood: PetMood,
     val moodNote: String,
     val dayOfWeek: Int,
+    val lookVariant: Int = 0,
+    val equippedPot: String = "",
+    val equippedAccessory: String = "",
 ) {
     val stage: GrowthStage get() = growthStages[stageIndex.coerceIn(growthStages.indices)]
 }

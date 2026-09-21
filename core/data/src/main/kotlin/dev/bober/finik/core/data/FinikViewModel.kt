@@ -21,6 +21,8 @@ class FinikViewModel(val repo: FinikRepository) : ViewModel() {
     fun confirmPlan() = viewModelScope.launch { repo.confirmPlan() }
     fun care(category: SpendCategory) = viewModelScope.launch { repo.care(category) }
     fun buy(itemId: String) = viewModelScope.launch { repo.buy(itemId) }
+    fun customize(pot: String? = null, accessory: String? = null, lookVariant: Int? = null) =
+        viewModelScope.launch { repo.customize(pot, accessory, lookVariant) }
     fun deposit(amount: Int) = viewModelScope.launch { repo.deposit(amount) }
     fun withdraw(amount: Int) = viewModelScope.launch { repo.withdraw(amount) }
     fun selectGoal(id: String) = viewModelScope.launch { repo.selectGoal(id) }
@@ -31,9 +33,13 @@ class FinikViewModel(val repo: FinikRepository) : ViewModel() {
         after()
     }
     fun repeatLastPlan() = viewModelScope.launch { repo.repeatLastPlan() }
-    fun parentBonus() = viewModelScope.launch { repo.parentBonus() }
+    fun parentBonus(pin: String = "") = viewModelScope.launch { repo.parentBonus(pin = pin) }
     fun setSound(on: Boolean) = viewModelScope.launch { repo.setSound(on) }
     fun setDemo(on: Boolean) = viewModelScope.launch { repo.setDemo(on) }
     fun setIncome(income: Int) = viewModelScope.launch { repo.setIncome(income) }
     fun resetProfile() = viewModelScope.launch { repo.resetProfile() }
+    fun chooseEvent(id: String, option: String) = viewModelScope.launch { repo.chooseEvent(id, option) }
+    fun chat(text: String, onReply: (String) -> Unit = {}) = viewModelScope.launch {
+        repo.chat(text)?.let { onReply(it.text) }
+    }
 }

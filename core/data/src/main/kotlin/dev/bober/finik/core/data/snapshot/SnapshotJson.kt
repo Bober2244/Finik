@@ -62,6 +62,12 @@ internal data class SnapshotDto(
     val saleBuys: Int = 0,
     val weeksOnTrack: Int = 0,
     val lastOpenEpochDay: Long = 0,
+    val lookVariant: Int = 0,
+    val equippedPot: String = "",
+    val equippedAccessory: String = "",
+    val ownedCosmetics: List<String> = emptyList(),
+    val lastIncomeNote: String = "",
+    val lastPurchaseNote: String = "",
 )
 
 @Serializable
@@ -117,6 +123,12 @@ internal fun GameSnapshot.toDto() = SnapshotDto(
     saleBuys = saleBuys,
     weeksOnTrack = weeksOnTrack,
     lastOpenEpochDay = lastOpenEpochDay,
+    lookVariant = pet.lookVariant,
+    equippedPot = pet.equippedPot,
+    equippedAccessory = pet.equippedAccessory,
+    ownedCosmetics = ownedCosmetics,
+    lastIncomeNote = lastIncomeNote,
+    lastPurchaseNote = lastPurchaseNote,
 )
 
 internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
@@ -134,6 +146,9 @@ internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
             mood = runCatching { PetMood.valueOf(mood) }.getOrDefault(PetMood.OKAY),
             moodNote = moodNote,
             dayOfWeek = dayOfWeek,
+            lookVariant = lookVariant,
+            equippedPot = equippedPot,
+            equippedAccessory = equippedAccessory,
         ),
         plan = WeekPlan(
             entries = plan.map {
@@ -188,5 +203,8 @@ internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
         lastOpenEpochDay = lastOpenEpochDay,
         ready = true,
         badges = emptyList(),
+        ownedCosmetics = ownedCosmetics,
+        lastIncomeNote = lastIncomeNote,
+        lastPurchaseNote = lastPurchaseNote,
     )
 }

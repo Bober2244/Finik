@@ -31,6 +31,18 @@ data class GameSnapshot(
     val weeksOnTrack: Int = 0,
     val lastOpenEpochDay: Long = 0,
     val ready: Boolean = true,
+    val online: Boolean = false,
+    val ownedCosmetics: List<String> = emptyList(),
+    val lastIncome: Int = 0,
+    val lastIncomeNote: String = "",
+    val lastPurchaseNote: String = "",
+    val lastPurchaseAmount: Int = 0,
+    val eventMode: String = "random",
+    val vaccinatedUntil: Int = 0,
+    val todayEvent: TodayEvent? = null,
+    val wordOfDay: WordOfDay? = null,
+    val wilted: Boolean = false,
+    val wiltXpLost: Int = 0,
 ) {
     val selectedGoal: SavingsGoal
         get() = goals.firstOrNull { it.id == selectedGoalId } ?: goals.first()

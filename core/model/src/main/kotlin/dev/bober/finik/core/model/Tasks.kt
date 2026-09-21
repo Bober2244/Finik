@@ -25,6 +25,9 @@ data class TaskItem(
     val done: Boolean,
     val target: TaskTarget? = null,
     val theme: TaskTheme = TaskTheme.PLAN,
+    val progress: Int = 0,
+    val goalCount: Int = 0,
+    val rewarded: Boolean = false,
 )
 
 data class QuizQuestion(
@@ -50,4 +53,5 @@ data class ScenarioTask(
 data class GlossaryTerm(
     val term: String,
     val meaning: String,
+    val example: String = "",
 )

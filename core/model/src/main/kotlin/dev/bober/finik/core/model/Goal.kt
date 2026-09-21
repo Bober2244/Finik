@@ -5,6 +5,8 @@ data class SavingsGoal(
     val title: String,
     val target: Int,
     val saved: Int,
+    val why: String = "",
+    val catalogSlug: String = id,
 ) {
     val percent: Int get() = if (target <= 0) 0 else (saved * 100f / target).let(Math::round).coerceAtLeast(0)
     val remaining: Int get() = (target - saved).coerceAtLeast(0)
@@ -31,6 +33,7 @@ data class Badge(
     val name: String,
     val note: String,
     val percent: Int,
+    val slug: String = "",
 ) {
     val isDone: Boolean get() = percent >= 100
 }

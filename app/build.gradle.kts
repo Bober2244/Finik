@@ -13,6 +13,12 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        buildConfigField("String", "API_BASE_URL", "\"http://100.127.197.56:8000/\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -29,6 +35,7 @@ dependencies {
     implementation(projects.core.designsystem)
     implementation(projects.core.navigation)
     implementation(projects.core.data)
+    implementation(projects.core.network)
 
     // Feature-модули: по одному на экран/флоу. Новые добавлять сюда и в settings.gradle.kts.
     implementation(projects.feature.onboarding)
