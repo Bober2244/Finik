@@ -37,7 +37,6 @@ dependencies {
     implementation(projects.core.data)
     implementation(projects.core.network)
 
-    // Feature-модули: по одному на экран/флоу. Новые добавлять сюда и в settings.gradle.kts.
     implementation(projects.feature.onboarding)
     implementation(projects.feature.home)
     implementation(projects.feature.plan)

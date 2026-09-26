@@ -42,9 +42,10 @@ import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.designsystem.theme.unbounded
-import dev.bober.finik.core.model.PetPotStyle
+import dev.bober.finik.core.model.PetAppearance
 import dev.bober.finik.core.model.PetSpecies
 import dev.bober.finik.core.model.SampleData
+import dev.bober.finik.core.pet.PetAnimation
 import dev.bober.finik.core.pet.PetFigure
 import dev.bober.finik.core.pet.PetFigureSpec
 
@@ -53,8 +54,8 @@ import dev.bober.finik.core.pet.PetFigureSpec
 internal fun NamePetScreen(
     onFinish: (name: String, income: Int) -> Unit,
     modifier: Modifier = Modifier,
-    species: PetSpecies = PetSpecies.FINIK,
-    potStyle: PetPotStyle = PetPotStyle.CLAY,
+    species: PetSpecies = PetSpecies.OWL,
+    appearance: PetAppearance = PetAppearance(),
 ) {
     var name by rememberSaveable { mutableStateOfString() }
     var income by rememberSaveable { mutableStateOfInt(SampleData.WEEKLY_INCOME) }
@@ -75,7 +76,7 @@ internal fun NamePetScreen(
         }
 
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            PetFigure(species = species, spec = PetFigureSpec.Naming, potStyle = potStyle)
+            PetFigure(species = species, spec = PetFigureSpec.Naming, appearance = appearance, action = PetAnimation.GREET)
         }
 
         NameField(value = name, onValueChange = { name = it })

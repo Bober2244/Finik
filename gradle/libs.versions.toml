@@ -18,6 +18,7 @@ koin = "4.1.1"
 ktor = "3.3.1"
 coil = "3.3.0"
 lottie = "6.6.10"
+sceneview = "4.38.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -65,6 +66,7 @@ ktor-serialization-json = { group = "io.ktor", name = "ktor-serialization-kotlin
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 coil-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil" }
 lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
+sceneview = { group = "io.github.sceneview", name = "sceneview", version.ref = "sceneview" }
 
 # Зависимости для build-logic (convention-плагины)
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }

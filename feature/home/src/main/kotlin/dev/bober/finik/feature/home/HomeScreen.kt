@@ -48,6 +48,7 @@ import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.model.SpendCategory
 import dev.bober.finik.core.model.StreakDay
 import dev.bober.finik.core.model.WeekPlan
+import dev.bober.finik.core.pet.PetAnimation
 import dev.bober.finik.core.pet.PetFigure
 import dev.bober.finik.core.pet.PetFigureSpec
 
@@ -70,6 +71,8 @@ internal fun HomeScreen(
     goalSaved: Int = SampleData.goal.saved,
     goalTarget: Int = SampleData.goal.target,
     activeTask: String? = SampleData.tasks.first().title,
+    action: PetAnimation = PetAnimation.IDLE,
+    actionEventId: Long = 0L,
     onCare: (SpendCategory) -> Unit = {},
     onOpenGoal: () -> Unit = {},
     onOpenTasks: () -> Unit = {},
@@ -83,7 +86,7 @@ internal fun HomeScreen(
             .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        HeroCard(pet = pet, needs = needs)
+        HeroCard(pet = pet, needs = needs, action = action, actionEventId = actionEventId)
         CareRow(actions = care, plan = plan, planConfirmed = planConfirmed, onCare = onCare)
         SnapshotRow(
             saved = goalSaved,
@@ -114,7 +117,7 @@ internal fun HomeScreen(
 }
 
 @Composable
-private fun HeroCard(pet: PetProfile, needs: List<NeedLevel>) {
+private fun HeroCard(pet: PetProfile, needs: List<NeedLevel>, action: PetAnimation, actionEventId: Long) {
     GradientCard(
         brush = Brush.verticalGradient(listOf(FinikColor.GreenHeroTop, FinikColor.SurfaceCream)),
         radius = 20.dp,
@@ -125,7 +128,9 @@ private fun HeroCard(pet: PetProfile, needs: List<NeedLevel>) {
                 species = pet.species,
                 spec = PetFigureSpec.hero(pet.stageIndex),
                 mood = pet.mood,
-                potStyle = pet.potStyle,
+                appearance = pet.appearance,
+                action = action,
+                actionEventId = actionEventId,
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -134,7 +139,7 @@ private fun HeroCard(pet: PetProfile, needs: List<NeedLevel>) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = pet.name, style = unbounded(19, lineHeight = 1.1), color = FinikColor.Ink)
                     Text(
-                        text = "${pet.mood.label} · день ${pet.dayOfWeek} из 7",
+                        text = "${pet.stage.name} · ${pet.mood.label}",
                         style = nunito(12.5),
                         color = FinikColor.TextWarm44,
                     )

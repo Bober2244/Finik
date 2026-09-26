@@ -18,6 +18,7 @@ import dev.bober.finik.core.model.GameSnapshot
 import dev.bober.finik.core.model.GlossaryTerm
 import dev.bober.finik.core.model.LessonAnswer
 import dev.bober.finik.core.model.OriginStory
+import dev.bober.finik.core.model.PetAppearance
 import dev.bober.finik.core.model.PetMood
 import dev.bober.finik.core.model.PetPotStyle
 import dev.bober.finik.core.model.PetSpecies
@@ -62,6 +63,8 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.math.roundToInt
 
+data class CareEvent(val category: SpendCategory, val sequence: Long)
+
 data class ToastEvent(val text: String, val warning: Boolean = false)
 
 class FinikRepository(
@@ -80,6 +83,10 @@ class FinikRepository(
 
     private val _toasts = MutableSharedFlow<ToastEvent>(extraBufferCapacity = 8)
     val toasts: SharedFlow<ToastEvent> = _toasts.asSharedFlow()
+
+    private val _careEvents = MutableSharedFlow<CareEvent>(extraBufferCapacity = 8)
+    val careEvents: SharedFlow<CareEvent> = _careEvents.asSharedFlow()
+    private var careSequence = 0L
 
     var glossary: List<GlossaryTerm> = catalog.glossary
         private set
@@ -100,7 +107,7 @@ class FinikRepository(
             null
         }
         _state.value = (loaded ?: SampleData.snapshot.copy(onboarded = false, ready = true))
-            .copy(shop = if (loaded == null) catalog.shop else loaded.shop, ready = true)
+            .copy(shop = loaded?.shop ?: catalog.shop, ready = true)
         if (_state.value.onboarded) {
             apply { GameEngine.dailyOpen(this, today()) }
         }
@@ -141,7 +148,7 @@ class FinikRepository(
     suspend fun createProfile(
         name: String,
         species: PetSpecies,
-        potStyle: PetPotStyle,
+        appearance: PetAppearance,
         income: Int,
     ) {
         if (ensureRemoteLogin()) {
@@ -150,10 +157,10 @@ class FinikRepository(
                     api.createPet(
                         PetIn(
                             name = name.trim(),
-                            species = species.name,
+                            species = species.legacyApiName,
                             weeklyIncome = income,
                             goalSlug = _state.value.goals.firstOrNull()?.catalogSlug,
-                            lookVariant = potStyle.toLookVariant(),
+                            lookVariant = 0,
                         ),
                     )
                 } catch (e: FinikApiException) {
@@ -162,7 +169,7 @@ class FinikRepository(
             }
             if (created != null) {
                 remoteEnabled = true
-                applyRemoteState(created, "Привет, ${created.pet.name}! Разложи ${created.weeklyIncome} монет: нужное, желаемое, копилка.")
+                applyRemoteState(created, "Привет, ${created.pet.name}! Разложи ${created.weeklyIncome} монет: нужное, желаемое, копилка.", appearance = appearance)
                 refreshRemoteLists()
                 return
             }
@@ -170,7 +177,8 @@ class FinikRepository(
         val created = GameEngine.createProfile(
             name = name,
             species = species,
-            potStyle = potStyle,
+            potStyle = PetPotStyle.CLAY,
+            appearance = appearance,
             income = income,
             shop = catalog.shop,
             goals = catalog.goals,
@@ -236,15 +244,18 @@ class FinikRepository(
             val label = _state.value.care.firstOrNull { it.category == category }?.label ?: category.label
             val extra = if (out.fromSavings) " Добрали из копилки." else ""
             applyRemoteState(out.state, "$label. +${out.xpGained} опыта.$extra")
+            _careEvents.emit(CareEvent(category, ++careSequence))
             return
         }
-        apply { GameEngine.care(this, category) }
+        val result = GameEngine.care(_state.value, category)
+        commit(result)
+        if (!result.warning) _careEvents.emit(CareEvent(category, ++careSequence))
     }
 
     suspend fun buy(itemId: String) {
         if (remoteEnabled) {
             val out = runCatchingUser { api.buy(BuyIn(itemId)) } ?: return
-            applyRemoteState(out.state, "Купили «${out.name}».")
+            applyRemoteState(out.state, "Купили «${out.name.animalText()}».")
             refreshShopAndTasks()
             return
         }
@@ -254,6 +265,12 @@ class FinikRepository(
     suspend fun customize(pot: String? = null, accessory: String? = null, lookVariant: Int? = null) {
         if (!remoteEnabled) return
         applyRemoteState(runCatchingUser { api.customize(CustomizeIn(pot, accessory, lookVariant)) } ?: return)
+    }
+
+    /** The existing backend only stores plant cosmetic slots; animal colors stay on this device. */
+    suspend fun customizeAppearance(appearance: PetAppearance) {
+        mutate { copy(pet = pet.copy(appearance = appearance)) }
+        _toasts.emit(ToastEvent("Внешность сохранена на этом устройстве."))
     }
 
     suspend fun deposit(amount: Int) {
@@ -322,7 +339,7 @@ class FinikRepository(
                 } else {
                     append("День ${day.day}. +${day.xpGained} опыта.")
                 }
-                if (day.wilted) append(" Росток подвял.")
+                if (day.wilted) append(" Питомец устал. Нужно восстановить силы.")
             }
             if (text.isNotBlank()) _toasts.emit(ToastEvent(text, warning = day.wilted))
             return
@@ -433,7 +450,7 @@ class FinikRepository(
 
     suspend fun chooseEvent(id: String, option: String): EventChoice? {
         val out = runCatchingUser { api.chooseEvent(id, ChooseIn(option)) } ?: return null
-        applyRemoteState(out.state, out.note)
+        applyRemoteState(out.state, out.note.animalText())
         refreshRemoteLists()
         return out.toModel()
     }
@@ -465,7 +482,7 @@ class FinikRepository(
     private suspend fun refreshHomeExtras() {
         runCatching { withContext(io) { api.remark() } }.onSuccess { remark ->
             val mood = runCatching { PetMood.valueOf(remark.mood) }.getOrDefault(_state.value.pet.mood)
-            val next = _state.value.copy(pet = _state.value.pet.copy(moodNote = remark.text, mood = mood))
+            val next = _state.value.copy(pet = _state.value.pet.copy(moodNote = remark.text.animalText(), mood = mood))
             persist(next)
             _state.value = next
         }
@@ -543,9 +560,10 @@ class FinikRepository(
         }
     }
 
-    private suspend fun applyRemoteState(out: StateOut, message: String? = null, warning: Boolean = false) {
+    private suspend fun applyRemoteState(out: StateOut, message: String? = null, warning: Boolean = false, appearance: PetAppearance? = null) {
         session.saveSnapshotJson(FinikJson.json.encodeToString(StateOut.serializer(), out))
-        val next = out.toSnapshot(_state.value)
+        val mapped = out.toSnapshot(_state.value)
+        val next = if (appearance != null) mapped.copy(pet = mapped.pet.copy(appearance = appearance)) else mapped
         persist(next)
         _state.value = next
         if (!message.isNullOrBlank()) _toasts.emit(ToastEvent(message, warning))

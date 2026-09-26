@@ -9,6 +9,7 @@ import dev.bober.finik.core.model.HistoryTone
 import dev.bober.finik.core.model.HistoryWeek
 import dev.bober.finik.core.model.LogTone
 import dev.bober.finik.core.model.NeedLevel
+import dev.bober.finik.core.model.PetAppearance
 import dev.bober.finik.core.model.PetMood
 import dev.bober.finik.core.model.PetPotStyle
 import dev.bober.finik.core.model.PetProfile
@@ -34,7 +35,7 @@ import kotlin.math.roundToInt
 object GameEngine {
 
     val careActions: List<CareAction> = listOf(
-        CareAction(label = "Полить", category = SpendCategory.WATER, cost = 2),
+        CareAction(label = "Напоить", category = SpendCategory.WATER, cost = 2),
         CareAction(label = "Покормить", category = SpendCategory.FOOD, cost = 3),
         CareAction(label = "Поиграть", category = SpendCategory.PLAY, cost = 2),
     )
@@ -48,6 +49,7 @@ object GameEngine {
         goals: List<SavingsGoal>,
         tasks: List<TaskItem>,
         epochDay: Long,
+        appearance: PetAppearance = PetAppearance.fromLegacy(potStyle.ordinal),
     ): GameSnapshot {
         val petName = name.trim().ifBlank { species.title }
         val pet = refreshPet(
@@ -55,6 +57,7 @@ object GameEngine {
                 name = petName,
                 species = species,
                 potStyle = potStyle,
+                appearance = appearance,
                 stageIndex = 0,
                 xp = 0,
                 totalXp = 0,
@@ -198,7 +201,7 @@ object GameEngine {
     fun care(state: GameSnapshot, category: SpendCategory): EngineResult {
         val action = careActions.first { it.category == category }
         if (!state.planConfirmed) {
-            return EngineResult(state, "Сначала собери план недели — тогда будет понятно, из какой статьи полить и покормить.", warning = true)
+            return EngineResult(state, "Сначала собери план недели — тогда будет понятно, из какой статьи напоить и покормить.", warning = true)
         }
         val left = state.plan.entry(category).left
         if (left < action.cost) {
@@ -219,12 +222,7 @@ object GameEngine {
             caredFood = state.caredFood || category == SpendCategory.FOOD,
             caredPlay = state.caredPlay || category == SpendCategory.PLAY,
         )
-        val bonus = when {
-            category == SpendCategory.WATER && state.pet.species == PetSpecies.FINIK -> 3
-            category == SpendCategory.PLAY && state.pet.species == PetSpecies.SPARK -> 3
-            else -> 1
-        }
-        next = addXp(next, bonus, action.label)
+        next = addXp(next, 1, action.label)
         next = refreshMood(next)
         return EngineResult(
             next.withBadges(),
@@ -393,14 +391,14 @@ object GameEngine {
             xpGain += 8
             log += WeekLogEntry("Нужное закрыто", "+8 опыта", LogTone.GOOD, false)
         } else {
-            log += WeekLogEntry("Нужное закрыто не полностью", "Финик немного устал", LogTone.BAD, false)
+            log += WeekLogEntry("Нужное закрыто не полностью", "Питомец немного устал", LogTone.BAD, false)
         }
         val savePercent = state.plan.percentOf(SpendCategory.SAVE)
         if (savePercent >= 20) xpGain += 6
         val note = when {
             over.isNotEmpty() -> "План чуть поехал. На следующей неделе урежь желаемое и верни копилку. Прогресс не сгорел."
             savedNow == 0 -> "Цель не двигалась. Попробуй сразу заложить 20% в копилку."
-            else -> "Неделя сложилась: нужное закрыто, копилка выросла. Финик подрос."
+            else -> "Неделя сложилась: нужное закрыто, копилка выросла. Питомец подрос."
         }
         val summary = "План ${state.plan.weeklyIncome} · потрачено $spent · отложено $savedNow"
         val report = WeekReport(week = state.pet.dayOfWeek.coerceAtLeast(state.weeksDone + 1).let { state.weeksDone + 1 }, rows = rows, summary = summary, note = note)
@@ -575,7 +573,7 @@ object GameEngine {
         Badge("Охотник за скидками", "10 покупок со скидкой", (saleBuys * 10).coerceIn(0, 100)),
         Badge("Полпути", "Половина цели собрана", goalPercent.coerceIn(0, 100)),
         Badge("Без долгов", "Неделя без перерасхода", lastWeekClean),
-        Badge("Большое дерево", "Вырастить Финика до дерева", (stageIndex * 100 / 4).coerceIn(0, 100)),
+        Badge("Мудрый друг", "Вырастить питомца до мудрого друга", (stageIndex * 100 / 4).coerceIn(0, 100)),
     )
 
     private fun GameSnapshot.withBadges(): GameSnapshot {

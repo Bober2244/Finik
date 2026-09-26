@@ -7,6 +7,7 @@ android {
 }
 
 dependencies {
+    implementation(projects.core.pet)
     implementation(libs.coil.compose)
     implementation(libs.coil.okhttp)
 }

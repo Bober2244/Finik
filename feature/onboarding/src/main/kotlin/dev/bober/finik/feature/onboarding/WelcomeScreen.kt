@@ -34,6 +34,7 @@ import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.designsystem.theme.unbounded
 import dev.bober.finik.core.model.PetSpecies
+import dev.bober.finik.core.pet.PetAnimation
 import dev.bober.finik.core.pet.PetFigure
 import dev.bober.finik.core.pet.PetFigureSpec
 
@@ -57,7 +58,11 @@ internal fun WelcomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            PetFigure(species = PetSpecies.FINIK, spec = PetFigureSpec.Welcome)
+            PetFigure(
+                species = PetSpecies.OWL,
+                spec = PetFigureSpec.Welcome.copy(width = 190.dp, height = 210.dp, live3d = true),
+                action = PetAnimation.GREET,
+            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),

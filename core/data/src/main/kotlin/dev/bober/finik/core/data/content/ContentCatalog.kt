@@ -20,9 +20,9 @@ class ContentCatalog(
     val shop: List<ShopItem> = SampleData.shop
 
     val goals: List<SavingsGoal> = listOf(
-        SavingsGoal("sunny_window", "Солнечное окно и большой горшок", 150, 0, why = "Ростку нужен свет и место для корней — это большая, но понятная мечта."),
-        SavingsGoal("watering_kit", "Набор для полива", 80, 0, why = "Лейка и запас воды. Обязательный уход станет проще."),
-        SavingsGoal("play_garden", "Игровая клумба", 120, 0, why = "Место для игр. Это желаемое: можно подождать, если копилка тонкая."),
+        SavingsGoal("sunny_window", "Уютный домик для питомца", 150, 0, why = "Питомцу нужно уютное место для отдыха — это большая, но понятная мечта."),
+        SavingsGoal("watering_kit", "Набор для прогулок", 80, 0, why = "Бутылочка и запас воды. Обязательный уход станет проще."),
+        SavingsGoal("play_garden", "Игровая площадка", 120, 0, why = "Место для игр. Это желаемое: можно подождать, если копилка тонкая."),
     )
 
     val tasks: List<TaskItem> get() = bundledTasks + extraTasks

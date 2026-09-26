@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,8 +12,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -20,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -34,21 +40,26 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import dev.bober.finik.core.designsystem.component.PrimaryButton
-import dev.bober.finik.core.model.PetPotStyle
+import dev.bober.finik.core.model.PetAccessory
+import dev.bober.finik.core.model.PetAppearance
+import dev.bober.finik.core.model.PetFurColor
 import dev.bober.finik.core.model.PetSpecies
+import dev.bober.finik.core.pet.PetAnimation
 import dev.bober.finik.core.pet.PetFigure
 import dev.bober.finik.core.pet.PetFigureSpec
 
-/** Шаг 1 из 2: список из трёх ростков с чертой и бонусом. */
+/** Шаг 1 из 2: знакомство с совой и выбор её внешности. */
 @Composable
 internal fun PickPetScreen(
-    onPick: (PetSpecies, PetPotStyle) -> Unit,
+    onPick: (PetSpecies, PetAppearance) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var species by rememberSaveable { mutableStateOf(PetSpecies.FINIK.name) }
-    var pot by rememberSaveable { mutableStateOf(PetPotStyle.CLAY.name) }
-    val selected = runCatching { PetSpecies.valueOf(species) }.getOrDefault(PetSpecies.FINIK)
-    val potStyle = runCatching { PetPotStyle.valueOf(pot) }.getOrDefault(PetPotStyle.CLAY)
+    var fur by rememberSaveable { mutableStateOf(PetFurColor.BLUE.name) }
+    var accessoryIds by rememberSaveable { mutableStateOf("") }
+    val appearance = PetAppearance(
+        furColor = PetFurColor.fromStored(fur),
+        accessories = accessoryIds.toSelectedAccessories(),
+    )
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -60,44 +71,61 @@ internal fun PickPetScreen(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             StepLabel(text = "Шаг 1 из 2")
-            Text(text = "Выбери росток", style = unbounded(23, lineHeight = 1.15), color = FinikColor.Ink)
+            Text(text = "Познакомься с совой", style = unbounded(23, lineHeight = 1.15), color = FinikColor.Ink)
         }
 
-        PetSpecies.entries.forEach { item ->
-            PetOptionCard(
-                species = item,
-                selected = item == selected,
-                onClick = { species = item.name },
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            PetFigure(
+                species = PetSpecies.OWL,
+                spec = PetFigureSpec.hero(0).copy(width = 210.dp, height = 230.dp),
+                appearance = appearance,
+                action = PetAnimation.GREET,
             )
         }
-        Text(text = "Цвет горшка — так получится 9 разных питомцев.", style = nunito(13, FontWeight.SemiBold), color = FinikColor.Text50)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PetPotStyle.entries.forEach { style ->
+        PetOptionCard()
+        Text(text = "Цвет перьев", style = nunito(14), color = FinikColor.Ink)
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            PetFurColor.entries.forEach { color ->
                 Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (style == potStyle) FinikColor.GreenSelected else FinikColor.Surface)
-                        .border(2.dp, if (style == potStyle) FinikColor.Green else FinikColor.Border, RoundedCornerShape(14.dp))
-                        .clickable { pot = style.name }
-                        .padding(10.dp),
+                    modifier = Modifier.width(112.dp)
+                        .heightIn(min = 76.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (color == appearance.furColor) FinikColor.GreenSelected else FinikColor.Surface)
+                        .border(2.dp, if (color == appearance.furColor) FinikColor.Green else FinikColor.Border, RoundedCornerShape(12.dp))
+                        .clickable { fur = color.name }
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
                 ) {
-                    PetFigure(species = selected, spec = PetFigureSpec.Card, potStyle = style, animate = false)
-                    Text(text = style.title, style = nunito(12), color = FinikColor.Ink)
+                    Box(Modifier.size(22.dp).background(Color(color.swatchArgb), CircleShape))
+                    Text(text = color.title, style = nunito(11), color = FinikColor.Ink)
                 }
             }
         }
+        Text(text = "Аксессуары", style = nunito(14), color = FinikColor.Ink)
+        Text(text = "Можно выбрать несколько. Изменить их можно будет позже в лавке.", style = nunito(12), color = FinikColor.Text50)
+        AccessoryOptions(
+            selected = appearance.accessories,
+            onSelect = { accessory ->
+                accessoryIds = when {
+                    accessory == PetAccessory.NONE -> emptySet()
+                    accessory in appearance.accessories -> appearance.accessories - accessory
+                    else -> appearance.accessories + accessory
+                }.toStoredAccessoryIds()
+            },
+        )
         PrimaryButton(
             text = "Дальше",
-            onClick = { onPick(selected, potStyle) },
+            onClick = { onPick(PetSpecies.OWL, appearance) },
             modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(modifier = Modifier.weight(1f))
         Text(
-            text = "Черта влияет на расходы: одному чаще нужна вода, другому — игры.",
+            text = "Забота помогает сове расти. Корми её, давай воду, играй и выполняй план недели.",
             style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.45),
             color = FinikColor.Text52,
         )
@@ -105,39 +133,58 @@ internal fun PickPetScreen(
 }
 
 @Composable
-private fun PetOptionCard(
-    species: PetSpecies,
-    selected: Boolean,
-    onClick: () -> Unit,
+private fun AccessoryOptions(
+    selected: Set<PetAccessory>,
+    onSelect: (PetAccessory) -> Unit,
 ) {
-    val shape = RoundedCornerShape(18.dp)
     Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        PetAccessory.entries.forEach { accessory ->
+            val active = if (accessory == PetAccessory.NONE) selected.isEmpty() else accessory in selected
+            val shape = RoundedCornerShape(12.dp)
+            Row(
+                modifier = Modifier.width(158.dp)
+                    .heightIn(min = 48.dp)
+                    .clip(shape)
+                    .background(if (active) FinikColor.GreenSelected else FinikColor.Surface)
+                    .border(2.dp, if (active) FinikColor.Green else FinikColor.Border, shape)
+                    .clickable { onSelect(accessory) }
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (active) "✓" else "+", style = nunito(13), color = FinikColor.GreenInk40)
+                Text(accessory.title, style = nunito(12), color = FinikColor.Ink)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PetOptionCard() {
+    val species = PetSpecies.OWL
+    val shape = RoundedCornerShape(18.dp)
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 100.dp)
             .clip(shape)
-            .background(if (selected) FinikColor.GreenSelected else FinikColor.Surface)
-            .border(2.dp, if (selected) FinikColor.Green else FinikColor.Border, shape)
-            .clickable(onClick = onClick)
+            .background(FinikColor.GreenSelected)
+            .border(2.dp, FinikColor.Green, shape)
             .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        PetFigure(species = species, spec = PetFigureSpec.Card, animate = false)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            Text(text = species.title, style = nunito(17), color = FinikColor.Ink)
-            Text(
-                text = species.description,
-                style = nunito(13, FontWeight.SemiBold, lineHeight = 1.35),
-                color = FinikColor.Text47,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TagChip(text = species.trait, background = FinikColor.ChipTrait, ink = FinikColor.TextWarm42)
-                TagChip(text = species.bonus, background = FinikColor.GreenChipBonus, ink = FinikColor.GreenInk40)
-            }
+        Text(text = species.title, style = nunito(17), color = FinikColor.Ink)
+        Text(
+            text = species.description,
+            style = nunito(13, FontWeight.SemiBold, lineHeight = 1.35),
+            color = FinikColor.Text47,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            TagChip(text = species.trait, background = FinikColor.ChipTrait, ink = FinikColor.TextWarm42)
+            TagChip(text = species.bonus, background = FinikColor.GreenChipBonus, ink = FinikColor.GreenInk40)
         }
     }
 }

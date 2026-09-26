@@ -9,11 +9,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.toRoute
 import dev.bober.finik.core.data.FinikViewModel
-import dev.bober.finik.core.model.PetPotStyle
+import dev.bober.finik.core.model.PetAppearance
+import dev.bober.finik.core.model.PetFurColor
 import dev.bober.finik.core.model.PetSpecies
 import dev.bober.finik.feature.onboarding.NamePetScreen
 import dev.bober.finik.feature.onboarding.PickPetScreen
 import dev.bober.finik.feature.onboarding.WelcomeScreen
+import dev.bober.finik.feature.onboarding.toSelectedAccessories
+import dev.bober.finik.feature.onboarding.toStoredAccessoryIds
 import kotlinx.serialization.Serializable
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -27,7 +30,7 @@ internal data object WelcomeRoute
 internal data object PickPetRoute
 
 @Serializable
-internal data class NamePetRoute(val species: String, val pot: String)
+internal data class NamePetRoute(val species: String, val fur: String, val accessories: String = "")
 
 fun NavGraphBuilder.onboardingGraph(
     navController: NavController,
@@ -39,8 +42,10 @@ fun NavGraphBuilder.onboardingGraph(
         }
         composable<PickPetRoute> {
             PickPetScreen(
-                onPick = { species, pot ->
-                    navController.navigate(NamePetRoute(species.name, pot.name))
+                onPick = { species, appearance ->
+                    navController.navigate(
+                        NamePetRoute(species.name, appearance.furColor.name, appearance.accessories.toStoredAccessoryIds()),
+                    )
                 },
             )
         }
@@ -51,14 +56,18 @@ fun NavGraphBuilder.onboardingGraph(
             LaunchedEffect(state.onboarded) {
                 if (state.onboarded) onFinished()
             }
+            val appearance = PetAppearance(
+                furColor = PetFurColor.fromStored(route.fur),
+                accessories = route.accessories.toSelectedAccessories(),
+            )
             NamePetScreen(
-                species = runCatching { PetSpecies.valueOf(route.species) }.getOrDefault(PetSpecies.FINIK),
-                potStyle = runCatching { PetPotStyle.valueOf(route.pot) }.getOrDefault(PetPotStyle.CLAY),
+                species = PetSpecies.fromStored(route.species),
+                appearance = appearance,
                 onFinish = { name, income ->
                     vm.createProfile(
                         name,
-                        runCatching { PetSpecies.valueOf(route.species) }.getOrDefault(PetSpecies.FINIK),
-                        runCatching { PetPotStyle.valueOf(route.pot) }.getOrDefault(PetPotStyle.CLAY),
+                        PetSpecies.fromStored(route.species),
+                        appearance,
                         income,
                     )
                 },

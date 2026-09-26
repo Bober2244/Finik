@@ -12,7 +12,7 @@ object SampleData {
 
     val pet = PetProfile(
         name = "Финик",
-        species = PetSpecies.FINIK,
+        species = PetSpecies.OWL,
         potStyle = PetPotStyle.CLAY,
         stageIndex = 2,
         xp = 55,
@@ -40,7 +40,7 @@ object SampleData {
     )
 
     val careActions: List<CareAction> = listOf(
-        CareAction(label = "Полить", category = SpendCategory.WATER, cost = 2),
+        CareAction(label = "Напоить", category = SpendCategory.WATER, cost = 2),
         CareAction(label = "Покормить", category = SpendCategory.FOOD, cost = 3),
         CareAction(label = "Поиграть", category = SpendCategory.PLAY, cost = 2),
     )
@@ -82,19 +82,19 @@ object SampleData {
     )
 
     val shop: List<ShopItem> = listOf(
-        ShopItem("s1", "Вода, 3 дня", cost = 3, category = SpendCategory.WATER, glyph = ItemGlyph.CIRCLE, kind = SpendKind.REQUIRED, effect = "Финик будет меньше хотеть пить."),
-        ShopItem("s2", "Витамины", cost = 6, oldCost = 10, category = SpendCategory.FOOD, glyph = ItemGlyph.ROUNDED, kind = SpendKind.REQUIRED, effect = "Финик станет сытее."),
-        ShopItem("s3", "Корм на неделю", cost = 12, category = SpendCategory.FOOD, glyph = ItemGlyph.POT, kind = SpendKind.REQUIRED, effect = "Финик будет сыт дольше."),
-        ShopItem("s4", "Мячик", cost = 3, oldCost = 5, category = SpendCategory.PLAY, glyph = ItemGlyph.CIRCLE, kind = SpendKind.OPTIONAL, effect = "Финик повеселеет. Это желаемое, можно подождать."),
-        ShopItem("s5", "Новый горшок", cost = 18, category = SpendCategory.PLAY, glyph = ItemGlyph.TALL_POT, kind = SpendKind.OPTIONAL, effect = "Красиво, но не обязательно на этой неделе."),
-        ShopItem("s6", "Лейка получше", cost = 8, oldCost = 11, category = SpendCategory.WATER, glyph = ItemGlyph.BUCKET, kind = SpendKind.REQUIRED, effect = "Поливать станет проще."),
+        ShopItem("s1", "Вода, 3 дня", cost = 3, category = SpendCategory.WATER, glyph = ItemGlyph.CIRCLE, kind = SpendKind.REQUIRED, effect = "Питомец будет меньше хотеть пить."),
+        ShopItem("s2", "Витамины", cost = 6, oldCost = 10, category = SpendCategory.FOOD, glyph = ItemGlyph.ROUNDED, kind = SpendKind.REQUIRED, effect = "Питомец станет сытее."),
+        ShopItem("s3", "Корм на неделю", cost = 12, category = SpendCategory.FOOD, glyph = ItemGlyph.POT, kind = SpendKind.REQUIRED, effect = "Питомец будет сыт дольше."),
+        ShopItem("s4", "Мячик", cost = 3, oldCost = 5, category = SpendCategory.PLAY, glyph = ItemGlyph.CIRCLE, kind = SpendKind.OPTIONAL, effect = "Питомец повеселеет. Это желаемое, можно подождать."),
+        ShopItem("s5", "Мягкая лежанка", cost = 18, category = SpendCategory.PLAY, glyph = ItemGlyph.TALL_POT, kind = SpendKind.OPTIONAL, effect = "Красиво, но не обязательно на этой неделе."),
+        ShopItem("s6", "Бутылочка для воды", cost = 8, oldCost = 11, category = SpendCategory.WATER, glyph = ItemGlyph.BUCKET, kind = SpendKind.REQUIRED, effect = "Удобно брать воду на прогулку."),
         ShopItem("s7", "Бантик", cost = 4, category = SpendCategory.PLAY, glyph = ItemGlyph.CIRCLE, kind = SpendKind.OPTIONAL, effect = "Украшение. Можно перенести."),
         ShopItem("s8", "Качели", cost = 9, category = SpendCategory.PLAY, glyph = ItemGlyph.ROUNDED, kind = SpendKind.OPTIONAL, effect = "Много радости, но это не еда и не вода."),
     )
 
     val goals: List<SavingsGoal> = listOf(
-        SavingsGoal("g1", "Солнечное окно и большой горшок", GOAL_TARGET, 0),
-        SavingsGoal("g2", "Набор красок для горшка", 60, 0),
+        SavingsGoal("g1", "Уютный домик для питомца", GOAL_TARGET, 0),
+        SavingsGoal("g2", "Набор игрушек", 60, 0),
         SavingsGoal("g3", "Полка у окна", 100, 0),
     )
 
@@ -112,7 +112,7 @@ object SampleData {
         WeekLogEntry("Отложено в копилку", "+11", LogTone.GOOD, rounded = true),
         WeekLogEntry("Куплено со скидкой", "+4 опыта", LogTone.NEUTRAL, rounded = false),
         WeekLogEntry("Перерасход по еде", "−2", LogTone.BAD, rounded = true),
-        WeekLogEntry("Забыл полить во вторник", "−5 опыта", LogTone.BAD, rounded = false),
+        WeekLogEntry("Забыл напоить во вторник", "−5 опыта", LogTone.BAD, rounded = false),
     )
 
     val badges: List<Badge> = listOf(
@@ -121,7 +121,7 @@ object SampleData {
         Badge("Охотник за скидками", "10 покупок со скидкой", 60),
         Badge("Полпути", "Половина цели собрана", 41),
         Badge("Без долгов", "Неделя без перерасхода", 100),
-        Badge("Большое дерево", "Вырастить Финика до дерева", 50),
+        Badge("Мудрый друг", "Вырастить питомца до мудрого друга", 50),
     )
 
     const val EARNED_TOTAL = 214

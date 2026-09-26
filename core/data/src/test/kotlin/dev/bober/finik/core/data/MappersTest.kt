@@ -1,5 +1,10 @@
 package dev.bober.finik.core.data
 
+import dev.bober.finik.core.model.PetAppearance
+import dev.bober.finik.core.model.PetAccessory
+import dev.bober.finik.core.model.PetEyeColor
+import dev.bober.finik.core.model.PetFurColor
+import dev.bober.finik.core.model.PetSpecies
 import dev.bober.finik.core.model.GameSnapshot
 import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.model.SpendCategory
@@ -20,6 +25,30 @@ class MappersTest {
         assertEquals(16, snapshot.plan.entry(SpendCategory.FOOD).planned)
         assertEquals("sunny_window", snapshot.selectedGoalId)
         assertEquals(40, snapshot.lastIncome)
+        assertEquals(PetSpecies.OWL, snapshot.pet.species)
+        assertEquals("Напоить", snapshot.care.first().label)
+        assertEquals("Уютный домик для питомца", snapshot.selectedGoal.title)
+    }
+
+    @Test
+    fun remoteRefreshPreservesLocallySavedAnimalAppearance() {
+        val appearance = PetAppearance(PetFurColor.DESERT_SAND, PetEyeColor.BLUE, PetAccessory.NONE)
+        val previous = SampleData.snapshot.copy(pet = SampleData.pet.copy(appearance = appearance))
+        val remote = FinikJson.json.decodeFromString(StateOut.serializer(), STATE_JSON)
+        val refreshed = remote.toSnapshot(previous)
+        assertEquals(appearance, refreshed.pet.appearance)
+        assertEquals(remote.pet.xp, refreshed.pet.totalXp)
+        assertEquals(remote.week.day, refreshed.pet.dayOfWeek)
+    }
+
+    @Test
+    fun legacyTextMigrationLeavesAnimalStagesAndUserNamesIntact() {
+        assertEquals("Питомец устал. Подросток хочет пить.", "Росток подвял. Подросток хочет пить.".animalText())
+        assertEquals("Питомец, питомец; ПОДРОСТОК", "Росток, росток; ПОДРОСТОК".animalText())
+        val remote = FinikJson.json.decodeFromString(StateOut.serializer(), STATE_JSON)
+        val snapshot = remote.copy(pet = remote.pet.copy(name = "Росток", moodNote = "Ростку нужен свет.")).toSnapshot(SampleData.snapshot)
+        assertEquals("Росток", snapshot.pet.name)
+        assertEquals("Питомцу нужна забота.", snapshot.pet.moodNote)
     }
 
     @Test

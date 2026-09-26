@@ -48,8 +48,10 @@ import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun FinikApp(modifier: Modifier = Modifier) {
-    val vm: FinikViewModel = koinViewModel()
+fun FinikApp(
+    modifier: Modifier = Modifier,
+    vm: FinikViewModel = koinViewModel()
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()

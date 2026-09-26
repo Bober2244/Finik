@@ -24,6 +24,8 @@ fun NavGraphBuilder.shopScreen() {
         val state by vm.state.collectAsStateWithLifecycle()
         ShopScreen(
             items = state.shop,
+            pet = state.pet,
+            onCustomize = vm::customizeAppearance,
             plan = state.plan,
             planConfirmed = state.planConfirmed,
             onCheck = vm.repo::buyCheck,

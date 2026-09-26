@@ -1,0 +1,11 @@
+{
+  "name": "finik-pet-asset-checks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node validate-glb.mjs"
+  },
+  "devDependencies": {
+    "gltf-validator": "2.0.0-dev.3.10"
+  }
+}

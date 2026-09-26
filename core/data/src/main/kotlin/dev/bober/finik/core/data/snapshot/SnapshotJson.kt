@@ -1,5 +1,6 @@
 package dev.bober.finik.core.data.snapshot
 
+import dev.bober.finik.core.data.animalText
 import dev.bober.finik.core.data.content.ContentCatalog
 import dev.bober.finik.core.data.game.GameEngine
 import dev.bober.finik.core.model.GameSnapshot
@@ -7,6 +8,10 @@ import dev.bober.finik.core.model.HistoryTone
 import dev.bober.finik.core.model.HistoryWeek
 import dev.bober.finik.core.model.LogTone
 import dev.bober.finik.core.model.NeedLevel
+import dev.bober.finik.core.model.PetAppearance
+import dev.bober.finik.core.model.PetFurColor
+import dev.bober.finik.core.model.PetEyeColor
+import dev.bober.finik.core.model.PetAccessory
 import dev.bober.finik.core.model.PetMood
 import dev.bober.finik.core.model.PetPotStyle
 import dev.bober.finik.core.model.PetProfile
@@ -35,7 +40,7 @@ internal data class SnapshotDto(
     val onboarded: Boolean,
     val petName: String,
     val species: String,
-    val potStyle: String,
+    val potStyle: String = "CLAY",
     val totalXp: Int,
     val mood: String,
     val moodNote: String,
@@ -65,6 +70,11 @@ internal data class SnapshotDto(
     val lookVariant: Int = 0,
     val equippedPot: String = "",
     val equippedAccessory: String = "",
+    val furColor: String? = null,
+    val eyeColor: String? = null,
+    val accessory: String? = null,
+    /** Null means a legacy snapshot that stored only one accessory. */
+    val accessories: List<String>? = null,
     val ownedCosmetics: List<String> = emptyList(),
     val lastIncomeNote: String = "",
     val lastPurchaseNote: String = "",
@@ -126,6 +136,10 @@ internal fun GameSnapshot.toDto() = SnapshotDto(
     lookVariant = pet.lookVariant,
     equippedPot = pet.equippedPot,
     equippedAccessory = pet.equippedAccessory,
+    furColor = pet.appearance.furColor.name,
+    eyeColor = pet.appearance.eyeColor.name,
+    accessory = pet.appearance.accessory.id,
+    accessories = PetAccessory.entries.filter { it in pet.appearance.accessories }.map { it.id },
     ownedCosmetics = ownedCosmetics,
     lastIncomeNote = lastIncomeNote,
     lastPurchaseNote = lastPurchaseNote,
@@ -138,17 +152,26 @@ internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
         onboarded = onboarded,
         pet = PetProfile(
             name = petName,
-            species = runCatching { PetSpecies.valueOf(species) }.getOrDefault(PetSpecies.FINIK),
+            species = PetSpecies.fromStored(species),
             potStyle = runCatching { PetPotStyle.valueOf(potStyle) }.getOrDefault(PetPotStyle.CLAY),
             stageIndex = stageIndexFor(total),
             xp = xpPercentInStage(total),
             totalXp = total,
             mood = runCatching { PetMood.valueOf(mood) }.getOrDefault(PetMood.OKAY),
-            moodNote = moodNote,
+            moodNote = moodNote.animalText(),
             dayOfWeek = dayOfWeek,
             lookVariant = lookVariant,
             equippedPot = equippedPot,
             equippedAccessory = equippedAccessory,
+            appearance = PetAppearance(
+                furColor = furColor?.let(PetFurColor::fromStored)
+                    ?: PetAppearance.fromLegacy(if (lookVariant != 0) lookVariant else PetPotStyle.entries.indexOfFirst { it.name == potStyle }.coerceAtLeast(0)).furColor,
+                eyeColor = eyeColor?.let { value -> PetEyeColor.entries.firstOrNull { it.name == value } } ?: PetEyeColor.GREEN,
+                accessories = accessories?.map(PetAccessory::fromStored)?.filter { it != PetAccessory.NONE }?.toSet()
+                    ?: PetAccessory.fromStored(accessory ?: equippedAccessory).let {
+                        if (it == PetAccessory.NONE) emptySet() else setOf(it)
+                    },
+            ),
         ),
         plan = WeekPlan(
             entries = plan.map {
@@ -177,7 +200,7 @@ internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
         },
         weekLog = weekLog.map {
             WeekLogEntry(
-                text = it.text,
+                text = it.text.animalText(),
                 delta = it.delta,
                 tone = runCatching { LogTone.valueOf(it.tone) }.getOrDefault(LogTone.NEUTRAL),
                 rounded = it.rounded,
@@ -187,7 +210,7 @@ internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
             WeekReport(
                 week = r.week,
                 summary = r.summary,
-                note = r.note,
+                note = r.note.animalText(),
                 rows = r.rows.map { ReportRow(SpendCategory.valueOf(it.category), it.planned, it.spent) },
             )
         },
@@ -205,6 +228,6 @@ internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
         badges = emptyList(),
         ownedCosmetics = ownedCosmetics,
         lastIncomeNote = lastIncomeNote,
-        lastPurchaseNote = lastPurchaseNote,
+        lastPurchaseNote = lastPurchaseNote.animalText(),
     )
 }

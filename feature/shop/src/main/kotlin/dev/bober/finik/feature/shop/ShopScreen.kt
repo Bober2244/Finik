@@ -40,6 +40,9 @@ import dev.bober.finik.core.designsystem.component.glyphShape
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
+import dev.bober.finik.core.model.PetProfile
+import dev.bober.finik.core.model.PetAppearance
+import androidx.compose.material3.FilterChip
 import dev.bober.finik.core.model.BuyCheck
 import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.model.ShopItem
@@ -49,12 +52,15 @@ import androidx.compose.foundation.background as bg
 @Composable
 internal fun ShopScreen(
     modifier: Modifier = Modifier,
+    pet: PetProfile = SampleData.pet,
+    onCustomize: (PetAppearance) -> Unit = {},
     items: List<ShopItem> = SampleData.shop,
     plan: WeekPlan = SampleData.plan,
     planConfirmed: Boolean = true,
     onCheck: (String) -> BuyCheck? = { null },
     onBuy: (String) -> Unit = {},
 ) {
+    var appearanceTab by rememberSaveable { mutableStateOf(false) }
     var pendingId by rememberSaveable { mutableStateOf<String?>(null) }
     var blocked by rememberSaveable { mutableStateOf<String?>(null) }
     val pending = items.firstOrNull { it.id == pendingId }
@@ -75,14 +81,24 @@ internal fun ShopScreen(
             ) {
                 ScreenTitle(text = "Лавка")
                 Text(
-                    text = if (planConfirmed) "Списывается из статьи плана" else "Сначала подтверди план",
+                    text = when {
+                        appearanceTab -> "Цвета и аксессуары"
+                        planConfirmed -> "Списывается из статьи плана"
+                        else -> "Сначала подтверди план"
+                    },
                     style = nunito(12),
                     color = FinikColor.Text48,
                     textAlign = TextAlign.End,
                     modifier = Modifier.widthIn(max = 160.dp),
                 )
             }
-            items.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !appearanceTab, onClick = { appearanceTab = false }, label = { Text("Уход и игры") })
+                FilterChip(selected = appearanceTab, onClick = { appearanceTab = true }, label = { Text("Внешность") })
+            }
+            if (appearanceTab) {
+                PetCustomization(pet = pet, onSave = onCustomize)
+            } else items.chunked(2).forEach { pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     pair.forEach { item ->
                         ShopCard(

@@ -9,6 +9,7 @@ import dev.bober.finik.core.database.FinikDatabase
 import dev.bober.finik.core.network.NetworkConfig
 import dev.bober.finik.core.network.createFinikApi
 import org.koin.android.ext.koin.androidContext
+import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
@@ -18,12 +19,10 @@ val dataModule = module {
             .fallbackToDestructiveMigration(true)
             .build()
     }
-    single { SessionStore(androidContext()) }
-    single { DeviceIdProvider(androidContext(), get()) }
+    singleOf(::SessionStore)
+    singleOf(::DeviceIdProvider)
     single {
-        val config = get<NetworkConfig>()
-        val session: SessionStore = get()
-        createFinikApi(baseUrl = config.baseUrl, tokenProvider = { session.token() })
+        createFinikApi(baseUrl = get<NetworkConfig>().baseUrl, tokenProvider = { get<SessionStore>().token() })
     }
     single { FinikRepository(db = get(), api = get(), session = get(), deviceIds = get()) }
     viewModelOf(::FinikViewModel)

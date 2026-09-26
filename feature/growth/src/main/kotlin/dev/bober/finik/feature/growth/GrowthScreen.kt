@@ -37,9 +37,9 @@ import dev.bober.finik.core.model.PetProfile
 import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.model.WeekLogEntry
 import dev.bober.finik.core.model.growthStages
-import dev.bober.finik.core.pet.StageBud
+import dev.bober.finik.core.pet.StageAnimal
 
-/** «Рост Финика»: текущая стадия с опытом, список стадий и итоги недели. */
+/** «Взросление питомца»: текущая стадия с опытом, список стадий и итоги недели. */
 @Composable
 internal fun GrowthScreen(
     onBack: () -> Unit,
@@ -58,7 +58,7 @@ internal fun GrowthScreen(
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        BackHeader(title = "Рост Финика", onBack = onBack)
+        BackHeader(title = "Взросление питомца", onBack = onBack)
 
         FinikCard(background = FinikColor.GreenCard, borderColor = null, gap = 9.dp) {
             Row(
@@ -68,12 +68,12 @@ internal fun GrowthScreen(
             ) {
                 Text(text = pet.stage.name, style = nunito(16), color = FinikColor.Ink)
                 Text(
-                    text = "до следующей стадии ${(100 - pet.xp).coerceAtLeast(0)} опыта",
+                    text = if (pet.stageIndex == stages.lastIndex) "Все стадии открыты" else "до следующей стадии ${(100 - pet.xp).coerceAtLeast(0)} опыта",
                     style = nunito(12.5),
                     color = FinikColor.GreenInk42,
                 )
             }
-            FinikProgressBar(progress = pet.xp / 100f, color = FinikColor.Green, height = 14.dp, track = FinikColor.WhiteGlassSoft)
+            FinikProgressBar(progress = if (pet.stageIndex == stages.lastIndex) 1f else pet.xp / 100f, color = FinikColor.Green, height = 14.dp, track = FinikColor.WhiteGlassSoft)
             Text(
                 text = "Опыт даёт не трата, а выполненный план: отложил вовремя — растёт быстрее.",
                 style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.45),
@@ -126,7 +126,7 @@ private fun StageRow(stage: GrowthStage, index: Int, currentIndex: Int) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.BottomCenter) {
-            StageBud(
+            StageAnimal(
                 size = (18 + index * 8).dp,
                 color = if (open) FinikColor.GreenStageOpen else FinikColor.BorderStrong,
             )

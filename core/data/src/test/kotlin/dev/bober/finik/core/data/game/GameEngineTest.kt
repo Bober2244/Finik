@@ -15,7 +15,7 @@ class GameEngineTest {
 
     private fun fresh() = GameEngine.createProfile(
         name = "Финик",
-        species = PetSpecies.FINIK,
+        species = PetSpecies.OWL,
         potStyle = PetPotStyle.CLAY,
         income = 40,
         shop = catalog.shop,

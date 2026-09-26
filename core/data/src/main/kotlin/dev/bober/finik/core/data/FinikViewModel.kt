@@ -2,7 +2,7 @@ package dev.bober.finik.core.data
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.bober.finik.core.model.PetPotStyle
+import dev.bober.finik.core.model.PetAppearance
 import dev.bober.finik.core.model.PetSpecies
 import dev.bober.finik.core.model.SpendCategory
 import kotlinx.coroutines.launch
@@ -11,9 +11,10 @@ import kotlinx.coroutines.launch
 class FinikViewModel(val repo: FinikRepository) : ViewModel() {
     val state = repo.state
     val toasts = repo.toasts
+    val careEvents = repo.careEvents
 
-    fun createProfile(name: String, species: PetSpecies, pot: PetPotStyle, income: Int) =
-        viewModelScope.launch { repo.createProfile(name, species, pot, income) }
+    fun createProfile(name: String, species: PetSpecies, appearance: PetAppearance, income: Int) =
+        viewModelScope.launch { repo.createProfile(name, species, appearance, income) }
 
     fun changePlan(category: SpendCategory, delta: Int) = viewModelScope.launch { repo.changePlan(category, delta) }
     fun applyAdvice() = viewModelScope.launch { repo.applyAdvice() }
@@ -23,6 +24,7 @@ class FinikViewModel(val repo: FinikRepository) : ViewModel() {
     fun buy(itemId: String) = viewModelScope.launch { repo.buy(itemId) }
     fun customize(pot: String? = null, accessory: String? = null, lookVariant: Int? = null) =
         viewModelScope.launch { repo.customize(pot, accessory, lookVariant) }
+    fun customizeAppearance(appearance: PetAppearance) = viewModelScope.launch { repo.customizeAppearance(appearance) }
     fun deposit(amount: Int) = viewModelScope.launch { repo.deposit(amount) }
     fun withdraw(amount: Int) = viewModelScope.launch { repo.withdraw(amount) }
     fun selectGoal(id: String) = viewModelScope.launch { repo.selectGoal(id) }

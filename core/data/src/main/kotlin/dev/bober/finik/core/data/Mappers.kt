@@ -73,13 +73,13 @@ internal fun PetOut.toModel(): PetProfile {
     val look = lookVariant.coerceIn(0, PetPotStyle.entries.lastIndex)
     return PetProfile(
         name = name,
-        species = runCatching { PetSpecies.valueOf(species) }.getOrDefault(PetSpecies.FINIK),
+        species = PetSpecies.fromStored(species),
         potStyle = PetPotStyle.entries[look],
         stageIndex = stageIndex,
         xp = xpPercentInStage(xp),
         totalXp = xp,
         mood = runCatching { PetMood.valueOf(mood) }.getOrDefault(PetMood.OKAY),
-        moodNote = moodNote,
+        moodNote = moodNote.animalText(),
         dayOfWeek = 1,
         lookVariant = look,
         equippedPot = equippedPot,
@@ -104,20 +104,20 @@ internal fun GoalOut.toModel(): SavingsGoal {
     val slug = catalogSlug.ifBlank { id }
     return SavingsGoal(
         id = slug,
-        title = title,
+        title = title.animalText(),
         target = target,
         saved = saved,
-        why = why,
+        why = why.animalText(),
         catalogSlug = slug,
     )
 }
 
 internal fun GoalCatalogOut.toModel(): SavingsGoal = SavingsGoal(
     id = slug,
-    title = title,
+    title = title.animalText(),
     target = target,
     saved = 0,
-    why = why,
+    why = why.animalText(),
     catalogSlug = slug,
 )
 
@@ -133,7 +133,7 @@ internal fun ShopItemOut.toModel(): ShopItem {
     }
     return ShopItem(
         id = slug,
-        name = name,
+        name = name.animalText(),
         cost = cost,
         oldCost = oldCost,
         category = category,
@@ -160,8 +160,8 @@ internal fun TaskOut.toModel(): TaskItem {
     }
     return TaskItem(
         id = slug,
-        title = title,
-        subtitle = subtitle,
+        title = title.animalText(),
+        subtitle = subtitle.animalText(),
         kind = kind,
         reward = reward,
         done = done,
@@ -174,15 +174,15 @@ internal fun TaskOut.toModel(): TaskItem {
 }
 
 internal fun QuestionOut.toModel(): QuizQuestion = QuizQuestion(
-    question = question,
-    options = options,
+    question = question.animalText(),
+    options = options.map { it.animalText() },
     rightIndex = -1,
     explanation = "",
 )
 
 internal fun AnswerOut.toModel(): LessonAnswer = LessonAnswer(
     correct = correct,
-    explanation = explanation,
+    explanation = explanation.animalText(),
     lessonDone = lessonDone,
     answered = answered,
     total = total,
@@ -205,13 +205,13 @@ internal fun HistoryOut.toReport(): WeekReport? {
             row.category.toCategoryOrNull()?.let { ReportRow(it, row.planned, row.actual) }
         },
         summary = lastSummary,
-        note = lastStory,
+        note = lastStory.animalText(),
     )
 }
 
 internal fun BadgeOut.toModel(): Badge = Badge(
-    name = name,
-    note = note,
+    name = name.animalText(),
+    note = note.animalText(),
     percent = if (isDone) max(percent, 100) else percent,
     slug = slug,
 )
@@ -225,15 +225,15 @@ internal fun TermOut.toModel(): GlossaryTerm = GlossaryTerm(
 internal fun EventOut.toModel(): TodayEvent = TodayEvent(
     id = id,
     slug = slug,
-    title = title,
-    text = text,
+    title = title.animalText(),
+    text = text.animalText(),
     day = day,
-    options = options.map { EventOption(it.key, it.label) },
+    options = options.map { EventOption(it.key, it.label.animalText()) },
     chosen = chosen,
 )
 
 internal fun ChoiceOut.toModel(): EventChoice = EventChoice(
-    note = note,
+    note = note.animalText(),
     coinsDelta = coinsDelta,
     xpDelta = xpDelta,
     needChanges = needChanges.mapNotNull { (key, value) ->
@@ -247,21 +247,21 @@ internal fun ChoiceOut.toModel(): EventChoice = EventChoice(
 internal fun WordOfDayOut.toModel(): WordOfDay = WordOfDay(word, meaning, example, source)
 
 internal fun DreamPlanOut.toModel(): DreamPlan = DreamPlan(
-    title = title,
+    title = title.animalText(),
     remain = remain,
     weeklySave = weeklySave,
     weeksLeft = weeksLeft,
-    steps = steps.map { DreamStep(it.title, it.coins) },
-    advice = advice,
+    steps = steps.map { DreamStep(it.title.animalText(), it.coins) },
+    advice = advice.animalText(),
     source = source,
     cutPlay = cutPlay,
     fasterSave = fasterSave,
     weeksSaved = weeksSaved,
 )
 
-internal fun OriginOut.toModel(): OriginStory = OriginStory(text, source)
+internal fun OriginOut.toModel(): OriginStory = OriginStory(text.animalText(), source)
 
-internal fun DiaryOut.toModel(): DiaryEntry = DiaryEntry(text, source, weekNumber)
+internal fun DiaryOut.toModel(): DiaryEntry = DiaryEntry(text.animalText(), source, weekNumber)
 
 internal fun QuizOut.toModel(): AiQuiz = AiQuiz(
     kind = kind,
@@ -273,7 +273,7 @@ internal fun QuizOut.toModel(): AiQuiz = AiQuiz(
 internal fun QuizAnswerOut.toModel(): AiQuizAnswer =
     AiQuizAnswer(correct, explanation, coins, rewarded)
 
-internal fun ChatOut.toModel(): ChatReply = ChatReply(text, source, blocked, chatLeft)
+internal fun ChatOut.toModel(): ChatReply = ChatReply(text.animalText(), source, blocked, chatLeft)
 
 internal fun WeekPlan.toPlanIn(): PlanIn = PlanIn(
     food = entry(SpendCategory.FOOD).planned,
@@ -298,12 +298,19 @@ fun StateOut.toSnapshot(previous: GameSnapshot): GameSnapshot {
             }
         else -> listOf(selected) + previousGoals
     }
-    val pet = pet.toModel().copy(dayOfWeek = week.day)
+    val mappedPet = pet.toModel()
+    val pet = mappedPet.copy(
+        dayOfWeek = week.day,
+        // The current API has no animal appearance fields. Never discard local edits on refresh.
+        appearance = if (previous.onboarded && previous.pet.species == mappedPet.species) {
+            previous.pet.appearance
+        } else mappedPet.appearance,
+    )
     val needs = this.pet.needs.mapNotNull { need ->
         need.category.toCategoryOrNull()?.let { NeedLevel(it, need.percent) }
     }.ifEmpty { previous.needs }
     val care = careActions.mapNotNull { action ->
-        action.category.toCategoryOrNull()?.let { CareAction(action.label, it, action.cost) }
+        action.category.toCategoryOrNull()?.let { CareAction(if (it == SpendCategory.WATER) "Напоить" else action.label.animalText(), it, action.cost) }
     }.ifEmpty { previous.care }
     val streak = streak.days.map { StreakDay(it.label, it.done) }.ifEmpty { previous.streak }
     return previous.copy(
@@ -321,7 +328,57 @@ fun StateOut.toSnapshot(previous: GameSnapshot): GameSnapshot {
         ownedCosmetics = ownedCosmetics,
         lastIncome = lastIncome,
         lastIncomeNote = lastIncomeNote,
-        lastPurchaseNote = lastPurchaseNote,
+        lastPurchaseNote = lastPurchaseNote.animalText(),
         lastPurchaseAmount = lastPurchaseAmount,
     )
 }
+
+/** Translate retired catalog wording without changing server IDs, purchases, or progression. */
+internal fun String.animalText(): String {
+    val phrases = legacyAnimalText.entries.fold(this) { text, (old, new) ->
+        Regex(Regex.escape(old), RegexOption.IGNORE_CASE).replace(text) { match ->
+            if (match.value.first().isUpperCase()) new.replaceFirstChar { it.uppercase() }
+            else new.replaceFirstChar { it.lowercase() }
+        }
+    }
+    return legacyAnimalWords.entries.fold(phrases) { text, (old, new) ->
+        Regex("(?<![\\p{L}\\p{M}\\p{N}_])${Regex.escape(old)}(?![\\p{L}\\p{M}\\p{N}_])", RegexOption.IGNORE_CASE).replace(text) { match ->
+            if (match.value.first().isUpperCase()) new.replaceFirstChar { it.uppercase() } else new
+        }
+    }
+}
+
+private val legacyAnimalWords = mapOf(
+    "росток" to "питомец",
+    "ростка" to "питомца",
+    "ростку" to "питомцу",
+    "ростком" to "питомцем",
+    "ростке" to "питомце",
+    "семечко" to "малыш",
+    "горшок" to "домик",
+    "горшка" to "домика",
+    "горшке" to "домике",
+    "горшком" to "домиком",
+    "лейка" to "бутылочка",
+    "лейку" to "бутылочку",
+    "полив" to "питьё",
+    "полива" to "питья",
+)
+
+private val legacyAnimalText = linkedMapOf(
+    "Солнечное окно и большой горшок" to "Уютный домик для питомца",
+    "Ростку нужен свет и место для корней" to "Питомцу нужно уютное место для отдыха",
+    "Ростку нужен свет" to "Питомцу нужна забота",
+    "Набор красок для горшка" to "Набор игрушек",
+    "Набор для полива" to "Набор для прогулок",
+    "Игровая клумба" to "Игровая площадка",
+    "Вырастить Финика до дерева" to "Вырастить питомца до мудрого друга",
+    "Большое дерево" to "Мудрый друг",
+    "Новый горшок" to "Мягкая лежанка",
+    "Лейка получше" to "Бутылочка для воды",
+    "Поливать станет проще" to "Пить на прогулке станет удобнее",
+    "Лейка и запас воды" to "Бутылочка и запас воды",
+    "Я семечко" to "Я малыш",
+    "Полить" to "Напоить",
+    "Подвял" to "Устал",
+)
