@@ -510,7 +510,7 @@ object GameEngine {
                 SpendCategory.PLAY -> state.caredPlay
                 else -> true
             }
-            need.copy(percent = (need.percent - if (cared) 12 else 28).coerceIn(8, 100))
+            need.copy(percent = (need.percent - if (cared) 12 else 28).coerceIn(0, 100))
         }
         var next = addXp(state, xpGain, "Итог недели")
         next = next.copy(

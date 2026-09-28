@@ -104,6 +104,16 @@ class GameEngineTest {
     }
 
     @Test
+    fun needsFallToZeroAndNeverBecomeNegative() {
+        var state = fresh()
+        repeat(4) {
+            state = GameEngine.confirmPlan(GameEngine.applyAdvice(state).state).state
+            state = GameEngine.closeWeek(state).state
+        }
+        assertEquals(listOf(0, 0, 0), state.needs.map { it.percent })
+    }
+
+    @Test
     fun purchasesAndSavingsAreItemizedAndForecastUsesCompletedNetContributions() {
         var state = GameEngine.confirmPlan(GameEngine.applyAdvice(fresh()).state).state
         state = GameEngine.buy(state, "s2").state
