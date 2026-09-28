@@ -6,11 +6,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -18,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -40,6 +44,7 @@ fun PrimaryButton(
     containerColor: Color = FinikColor.Green,
     contentColor: Color = MaterialTheme.colorScheme.onPrimary,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
 ) {
     Box(
         modifier = modifier
@@ -50,12 +55,26 @@ fun PrimaryButton(
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = text,
-            style = textStyle,
-            color = if (enabled) contentColor else FinikColor.Text56,
-            textAlign = TextAlign.Center,
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = if (enabled) contentColor else FinikColor.Text56,
+                )
+            }
+            Text(
+                text = text,
+                style = textStyle,
+                color = if (enabled) contentColor else FinikColor.Text56,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -71,6 +90,7 @@ fun OutlineButton(
     borderColor: Color = FinikColor.BorderStrong,
     contentColor: Color = FinikColor.Ink,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
 ) {
     Box(
         modifier = modifier
@@ -82,7 +102,21 @@ fun OutlineButton(
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = text, style = textStyle, color = if (enabled) contentColor else FinikColor.Text56, textAlign = TextAlign.Center)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = if (enabled) contentColor else FinikColor.Text56,
+                )
+            }
+            Text(text = text, style = textStyle, color = if (enabled) contentColor else FinikColor.Text56, textAlign = TextAlign.Center)
+        }
     }
 }
 

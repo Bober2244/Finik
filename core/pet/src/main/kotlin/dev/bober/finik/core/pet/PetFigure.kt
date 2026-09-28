@@ -32,6 +32,7 @@ import dev.bober.finik.core.model.PetFurColor
 import dev.bober.finik.core.model.PetMood
 import dev.bober.finik.core.model.PetSpecies
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 
 /** Размер области питомца. Небольшие карточки используют экспортированный Blender-портрет. */
 data class PetFigureSpec(
@@ -91,7 +92,7 @@ fun PetFigure(
     LaunchedEffect(spec.live3d) {
         if (spec.live3d) {
             // Paint the lightweight portrait first; native 3D loading starts after initial UI.
-            delay(3_000)
+            delay(3.seconds)
             showLiveScene = true
         }
     }

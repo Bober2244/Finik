@@ -31,13 +31,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.CoinIcon
 import dev.bober.finik.core.designsystem.component.FinikIcons
 import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
 import dev.bober.finik.core.designsystem.component.ScreenTitle
-import dev.bober.finik.core.designsystem.component.TagChip
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.chipBackground
@@ -80,7 +80,7 @@ internal fun TasksScreen(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 ScreenTitle(text = "Задания")
                 Text(
-                    text = "Выполнено $done из ${tasks.size} · можно получить $available монет",
+                    text = "Готово $done/${tasks.size} · награда $available монет",
                     style = nunito(14, FontWeight.ExtraBold),
                     color = FinikColor.Text44,
                 )
@@ -184,29 +184,36 @@ private fun TaskCard(task: TaskItem, onClick: () -> Unit) {
             )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(text = task.title, style = nunito(15, lineHeight = 1.25), color = FinikColor.Ink)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TagChip(
-                    text = task.kind.label,
-                    background = task.kind.chipBackground,
-                    ink = task.kind.chipInk,
-                )
-                Text(text = if (task.done) "выполнено" else task.subtitle, style = nunito(13, FontWeight.SemiBold), color = FinikColor.Text50)
-            }
+            Text(text = task.title, style = nunito(15, lineHeight = 1.25), color = FinikColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = if (task.done) "Готово" else task.subtitle,
+                style = nunito(13, FontWeight.SemiBold),
+                color = FinikColor.Text50,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (!task.done && task.goalCount > 0) {
-                Text(text = "Прогресс: ${task.progress} из ${task.goalCount}", style = nunito(13), color = FinikColor.Text46)
+                Text(text = "${task.progress}/${task.goalCount}", style = nunito(13), color = FinikColor.Text46)
             }
         }
-        Row(
-            modifier = Modifier
-                .height(34.dp)
-                .background(FinikColor.CoinChip, RoundedCornerShape(11.dp))
-                .padding(start = 7.dp, end = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            CoinIcon(size = 15.dp, borderWidth = 2.dp)
-            Text(text = task.reward.toString(), style = nunito(15, FontWeight.ExtraBold), color = FinikColor.CoinInk)
+            Row(
+                modifier = Modifier
+                    .height(34.dp)
+                    .background(FinikColor.CoinChip, RoundedCornerShape(11.dp))
+                    .padding(start = 7.dp, end = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                CoinIcon(size = 15.dp, borderWidth = 2.dp)
+                Text(text = task.reward.toString(), style = nunito(15, FontWeight.ExtraBold), color = FinikColor.CoinInk)
+            }
+            if (!task.done) {
+                Icon(FinikIcons.Next, contentDescription = null, modifier = Modifier.size(22.dp), tint = FinikColor.Green)
+            }
         }
     }
 }

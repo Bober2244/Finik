@@ -15,9 +15,10 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,12 +31,14 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import dev.bober.finik.core.designsystem.component.PrimaryButton
+import dev.bober.finik.core.designsystem.component.FinikIcons
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
@@ -45,7 +48,7 @@ import dev.bober.finik.core.pet.PetAnimation
 import dev.bober.finik.core.pet.PetFigure
 import dev.bober.finik.core.pet.PetFigureSpec
 
-/** Приветствие: питомец, слоган, три цифры экономики и кнопка «Создать питомца». */
+/** Приветствие: питомец и три понятных направления для первых действий. */
 @Composable
 internal fun WelcomeScreen(
     onStart: () -> Unit,
@@ -100,11 +103,10 @@ internal fun WelcomeScreen(
                         color = FinikColor.Ink,
                     )
                     Text(
-                        text = "Сначала реши: потратить на нужное, на желаемое или отложить. Потом увидишь, как это меняет питомца.",
+                        text = "Заботься о сове и учись планировать.",
                         style = nunito(16, FontWeight.SemiBold, lineHeight = 1.5),
                         color = FinikColor.Text43,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.widthIn(max = 290.dp),
                     )
                 }
             }
@@ -114,14 +116,15 @@ internal fun WelcomeScreen(
                     modifier = Modifier.height(IntrinsicSize.Max),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    StatTile(value = "нужное", label = "еда и вода", valueColor = FinikColor.GreenStat)
-                    StatTile(value = "желаемое", label = "игры, можно ждать", valueColor = FinikColor.RedStat)
-                    StatTile(value = "копилка", label = "на мечту", valueColor = FinikColor.CoinInk40)
+                    StatTile(label = "Нужное", icon = FinikIcons.Food, valueColor = FinikColor.GreenStat)
+                    StatTile(label = "Желаемое", icon = FinikIcons.Play, valueColor = FinikColor.RedStat)
+                    StatTile(label = "Копилка", icon = FinikIcons.Goal, valueColor = FinikColor.CoinInk40)
                 }
                 PrimaryButton(
-                    text = "Создать питомца",
+                    text = "Создать сову",
                     onClick = onStart,
                     modifier = Modifier.fillMaxWidth(),
+                    icon = FinikIcons.Pet,
                 )
             }
         }
@@ -129,7 +132,7 @@ internal fun WelcomeScreen(
 }
 
 @Composable
-private fun RowScope.StatTile(value: String, label: String, valueColor: Color) {
+private fun RowScope.StatTile(label: String, icon: ImageVector, valueColor: Color) {
     Column(
         modifier = Modifier
             .weight(1f)
@@ -137,10 +140,11 @@ private fun RowScope.StatTile(value: String, label: String, valueColor: Color) {
             .background(FinikColor.WhiteGlass, RoundedCornerShape(14.dp))
             .border(1.dp, FinikColor.BorderStrong, RoundedCornerShape(14.dp))
             .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
     ) {
-        Text(text = value, style = nunito(14, FontWeight.ExtraBold, lineHeight = 1.15), color = valueColor)
-        Text(text = label, style = nunito(12), color = FinikColor.Text48)
+        Icon(imageVector = icon, contentDescription = null, tint = valueColor, modifier = Modifier.size(24.dp))
+        Text(text = label, style = nunito(12, FontWeight.ExtraBold), color = FinikColor.Ink)
     }
 }
 

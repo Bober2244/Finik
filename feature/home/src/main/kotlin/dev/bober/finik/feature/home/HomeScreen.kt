@@ -3,6 +3,7 @@ package dev.bober.finik.feature.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,6 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,8 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.FinikCard
@@ -42,7 +48,7 @@ import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
 import dev.bober.finik.core.designsystem.component.FinikIcons
 import dev.bober.finik.core.designsystem.component.FinikProgressBar
 import dev.bober.finik.core.designsystem.component.GradientCard
-import dev.bober.finik.core.designsystem.component.LinkButton
+import dev.bober.finik.core.designsystem.component.OutlineButton
 import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.component.SegmentedBar
 import dev.bober.finik.core.designsystem.component.TitleRow
@@ -117,24 +123,24 @@ internal fun HomeScreen(
         StreakCard(days = streak)
         if (planConfirmed) {
             PrimaryButton(
-                text = "Завершить период и посмотреть отчёт",
+                text = "Завершить неделю",
                 onClick = { confirmClose = true },
                 modifier = Modifier.fillMaxWidth(),
+                icon = FinikIcons.TaskWeek,
             )
-        } else if (!planConfirmed) {
-            FinikCard(background = FinikColor.CoinChip, borderColor = null) {
-                Text(
-                    text = "Сначала разложи ${plan.freeCoins} свободных монет в плане: нужное, желаемое, копилка.",
-                    style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4),
-                    color = FinikColor.CoinInk42,
-                )
-            }
+        } else {
+            PrimaryButton(
+                text = if (plan.freeCoins > 0) "Распределить ${plan.freeCoins} монет" else "Подтвердить план",
+                onClick = onOpenPlan,
+                modifier = Modifier.fillMaxWidth(),
+                icon = if (plan.freeCoins > 0) FinikIcons.Plan else FinikIcons.Confirm,
+            )
         }
     }
     if (confirmClose) {
         FinikConfirmSheet(
-            title = "Завершить период?",
-            body = "Мы сравним план с фактическими тратами и накоплениями. Начнётся новый период.",
+            title = "Завершить неделю?",
+            body = "Покажем отчёт и начнём новую неделю.",
             confirmText = "Завершить",
             onConfirm = {
                 confirmClose = false
@@ -196,13 +202,7 @@ private fun HeroCard(
                     onInteractionChange = onPetInteractionChange,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-                Text(
-                    text = pet.moodNote,
-                    style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.35),
-                    color = FinikColor.Text42,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                )
+                Spacer(modifier = Modifier.height(12.dp))
                 if (stackedNeeds) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -299,7 +299,7 @@ private fun CareButton(
             .clip(shape)
             .background(if (enabled) FinikColor.Surface else FinikColor.SurfaceSoft)
             .border(1.dp, if (enabled) FinikColor.Border else FinikColor.RedBorderCare, shape)
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = if (horizontal) 14.dp else 6.dp, vertical = 10.dp)
     val icon = when (action.category) {
         SpendCategory.FOOD -> FinikIcons.Food
@@ -334,9 +334,10 @@ private fun CareButton(
 private fun CareButtonText(action: CareAction, left: Int, enabled: Boolean) {
     Text(text = action.label, style = nunito(14), color = FinikColor.Ink)
     Text(
-        text = "${action.cost} из $left · ${action.category.label}",
+        text = "−${action.cost} мон. · $left осталось",
         style = nunito(11.5),
         color = if (enabled) FinikColor.Text48 else FinikColor.RedCost,
+        textAlign = TextAlign.Center,
     )
 }
 
@@ -354,27 +355,54 @@ private fun SnapshotRow(
         horizontalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         FinikCard(
-            modifier = Modifier.weight(1f).fillMaxHeight().clickable(onClick = onOpenGoal),
+            modifier = Modifier.weight(1f).fillMaxHeight().clickable(role = Role.Button, onClick = onOpenGoal),
             radius = 16.dp,
             background = FinikColor.GreenCard,
             borderColor = null,
             gap = 6.dp,
         ) {
-            Text(text = "Копилка", style = nunito(12), color = FinikColor.GreenInk42)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier.size(30.dp).background(FinikColor.GreenPill, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(FinikIcons.Goal, contentDescription = null, modifier = Modifier.size(18.dp), tint = FinikColor.GreenInk40)
+                }
+                Text(text = "Копилка", style = nunito(13, FontWeight.Bold), color = FinikColor.GreenInk42, modifier = Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp), tint = FinikColor.GreenInk42)
+            }
             Text(text = "$saved / $target", style = unbounded(18, lineHeight = 1), color = FinikColor.GreenInk34)
-            Text(text = title, style = nunito(12, FontWeight.SemiBold, lineHeight = 1.3), color = FinikColor.GreenInk40s, maxLines = 2)
+            Text(text = title, style = nunito(12, FontWeight.SemiBold, lineHeight = 1.3), color = FinikColor.GreenInk40s, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         FinikCard(
-            modifier = Modifier.weight(1f).fillMaxHeight().clickable(onClick = onOpenTasks),
+            modifier = Modifier.weight(1f).fillMaxHeight().clickable(role = Role.Button, onClick = onOpenTasks),
             radius = 16.dp,
             gap = 6.dp,
         ) {
-            Text(text = "Задание", style = nunito(12), color = FinikColor.Text50)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier.size(30.dp).background(FinikColor.Chip, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(FinikIcons.Tasks, contentDescription = null, modifier = Modifier.size(18.dp), tint = FinikColor.Text40)
+                }
+                Text(text = "Задания", style = nunito(13, FontWeight.Bold), color = FinikColor.Text40, modifier = Modifier.weight(1f))
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp), tint = FinikColor.Text50)
+            }
             Text(
                 text = task ?: "Все задания сделаны",
                 style = nunito(14, FontWeight.SemiBold, lineHeight = 1.3),
                 color = FinikColor.Ink,
-                maxLines = 3,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -389,7 +417,12 @@ private fun PlanCard(plan: WeekPlan, onEdit: () -> Unit) {
             verticalAlignment = Alignment.Bottom,
         ) {
             Text(text = "План недели", style = nunito(14.5), color = FinikColor.Ink)
-            LinkButton(text = "изменить", onClick = onEdit)
+            OutlineButton(
+                text = "Изменить",
+                onClick = onEdit,
+                height = 48.dp,
+                icon = Icons.Rounded.Edit,
+            )
         }
         SegmentedBar(
             segments = plan.entries.map { it.planned.toFloat() to it.category.color },
@@ -427,8 +460,8 @@ private fun StreakCard(days: List<StreakDay>) {
     val done = days.count { it.done }
     FinikCard(gap = 10.dp) {
         TitleRow(
-            title = "Вход каждый день",
-            trailing = "$done из ${days.size} · на седьмой день +5",
+            title = "Каждый день",
+            trailing = "$done / ${days.size} · +5 монет",
             modifier = Modifier.fillMaxWidth(),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

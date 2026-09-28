@@ -1,8 +1,11 @@
 package dev.bober.finik.core.designsystem.component
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AssignmentTurnedIn
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bed
@@ -20,6 +23,7 @@ import androidx.compose.material.icons.rounded.Medication
 import androidx.compose.material.icons.rounded.Pets
 import androidx.compose.material.icons.rounded.PieChart
 import androidx.compose.material.icons.rounded.PlayCircle
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Restaurant
@@ -38,6 +42,14 @@ import androidx.compose.material.icons.rounded.WorkspacePremium
 
 /** Recognizable icons shared by the game's screens. Text next to an icon supplies its label. */
 object FinikIcons {
+    val Back = Icons.AutoMirrored.Rounded.ArrowBack
+    val Next = Icons.AutoMirrored.Rounded.ArrowForward
+    val Advice = Icons.Rounded.AutoAwesome
+    val Add = Icons.Rounded.Add
+    val Remove = Icons.Rounded.Remove
+    val Confirm = Icons.Rounded.TaskAlt
+    val Repeat = Icons.Rounded.Repeat
+
     val Pet = Icons.Rounded.Pets
     val Plan = Icons.Rounded.PieChart
     val Tasks = Icons.Rounded.AssignmentTurnedIn

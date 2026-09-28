@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.FinikCard
+import dev.bober.finik.core.designsystem.component.FinikIcons
 import dev.bober.finik.core.designsystem.component.OutlineButton
 import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.component.SquareIconButton
@@ -60,8 +63,8 @@ internal fun ReportScreen(
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SquareIconButton(onClick = onBack, size = 42.dp) {
-            Text(text = "←", style = nunito(18), color = FinikColor.Ink)
+        SquareIconButton(onClick = onBack, size = 48.dp, contentDescription = "Назад") {
+            Icon(FinikIcons.Back, contentDescription = null, modifier = Modifier.size(22.dp), tint = FinikColor.Ink)
         }
 
         FinikCard(radius = 20.dp, contentPadding = PaddingValues(16.dp), gap = 14.dp) {
@@ -92,6 +95,7 @@ internal fun ReportScreen(
                     height = 48.dp,
                     radius = 12.dp,
                     textStyle = nunito(14),
+                    icon = FinikIcons.Plan,
                 )
                 OutlineButton(
                     text = "Повторить",
@@ -99,6 +103,7 @@ internal fun ReportScreen(
                     modifier = Modifier.weight(1f),
                     height = 48.dp,
                     radius = 12.dp,
+                    icon = FinikIcons.Repeat,
                 )
             }
         }
@@ -112,12 +117,12 @@ internal fun EmptyReportScreen(onBack: () -> Unit) {
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        SquareIconButton(onClick = onBack, size = 48.dp) {
-            Text(text = "Назад", style = nunito(14), color = FinikColor.Ink)
+        SquareIconButton(onClick = onBack, size = 48.dp, contentDescription = "Назад") {
+            Icon(FinikIcons.Back, contentDescription = null, modifier = Modifier.size(22.dp), tint = FinikColor.Ink)
         }
         FinikCard {
             Text(text = "Отчёта пока нет", style = unbounded(19), color = FinikColor.Ink)
-            Text(text = "Подтверди план и закрой первый период — здесь появятся настоящие план и факт.", style = nunito(14), color = FinikColor.Text46)
+            Text(text = "Отчёт появится после первого периода", style = nunito(14), color = FinikColor.Text46)
         }
     }
 }
