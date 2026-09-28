@@ -41,6 +41,7 @@ data class PetFigureSpec(
     val live3d: Boolean = false,
     val portraitScale: Float = 1f,
     val portraitOffsetY: Dp = 0.dp,
+    val modelScaleMultiplier: Float = 1f,
 ) {
     companion object {
         val Welcome = PetFigureSpec(150.dp, 160.dp, live3d = true)
@@ -114,6 +115,7 @@ fun PetFigure(
                 action = action,
                 actionEventId = actionEventId,
                 animate = effectiveAnimation,
+                modelScaleMultiplier = spec.modelScaleMultiplier,
                 onSceneReady = {
                     sceneReady = true
                     sceneFailed = false

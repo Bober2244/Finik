@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.FinikCard
@@ -155,73 +154,69 @@ private fun HeroCard(
     GradientCard(
         brush = Brush.verticalGradient(listOf(FinikColor.GreenHeroTop, FinikColor.SurfaceCream)),
         modifier = Modifier.fillMaxWidth(),
-        radius = 20.dp,
+        radius = 24.dp,
         gap = 0.dp,
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val stacked = maxWidth < 290.dp || LocalDensity.current.fontScale > 1.35f
-            val narrow = maxWidth < 350.dp || LocalDensity.current.fontScale > 1.15f
-            if (stacked) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    PetFigure(
-                        species = pet.species,
-                        spec = PetFigureSpec(140.dp, 155.dp, pet.stageIndex, live3d = true, portraitScale = .78f, portraitOffsetY = 20.dp),
-                        mood = pet.mood,
-                        appearance = pet.appearance,
-                        action = action,
-                        actionEventId = actionEventId,
-                        onInteractionChange = onPetInteractionChange,
-                    )
-                    Text(
-                        text = pet.appearance.furColor.title,
-                        style = nunito(11, FontWeight.SemiBold),
-                        color = FinikColor.Text42,
-                    )
-                    HeroDetails(pet = pet, needs = needs, modifier = Modifier.fillMaxWidth())
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(if (narrow) 8.dp else 14.dp)) {
-                    if (narrow) {
-                        Column(modifier = Modifier.width(110.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            PetFigure(
-                                species = pet.species,
-                                spec = PetFigureSpec(110.dp, 135.dp, pet.stageIndex, live3d = true, portraitScale = .78f, portraitOffsetY = 20.dp),
-                                mood = pet.mood,
-                                appearance = pet.appearance,
-                                action = action,
-                                actionEventId = actionEventId,
-                                onInteractionChange = onPetInteractionChange,
-                            )
-                            Text(
-                                text = pet.appearance.furColor.title,
-                                style = nunito(11, FontWeight.SemiBold),
-                                color = FinikColor.Text42,
-                            )
-                            if (pet.appearance.accessories.isNotEmpty()) {
-                                Text(
-                                    text = pet.appearance.accessories.sortedBy { it.ordinal }.joinToString { it.title },
-                                    style = nunito(10),
-                                    color = FinikColor.Text42,
-                                    maxLines = 2,
-                                )
-                            }
-                        }
-                    } else {
-                        PetFigure(
-                            species = pet.species,
-                            spec = PetFigureSpec.hero(pet.stageIndex).copy(portraitScale = .78f, portraitOffsetY = 20.dp),
-                            mood = pet.mood,
-                            appearance = pet.appearance,
-                            action = action,
-                            actionEventId = actionEventId,
-                            onInteractionChange = onPetInteractionChange,
-                        )
+            val petSize = (maxWidth * .76f).coerceAtMost(250.dp)
+            val stackedNeeds = maxWidth < 290.dp || LocalDensity.current.fontScale > 1.2f
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = pet.name,
+                    style = unbounded(22, lineHeight = 1.1),
+                    color = FinikColor.Ink,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = "${pet.stage.name} · ${pet.mood.label}",
+                    style = nunito(12.5),
+                    color = FinikColor.TextWarm44,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                PetFigure(
+                    species = pet.species,
+                    spec = PetFigureSpec(
+                        width = petSize,
+                        height = petSize,
+                        stageIndex = pet.stageIndex,
+                        live3d = true,
+                        portraitScale = 1.04f,
+                        modelScaleMultiplier = 1.45f,
+                    ),
+                    mood = pet.mood,
+                    appearance = pet.appearance,
+                    action = action,
+                    actionEventId = actionEventId,
+                    onInteractionChange = onPetInteractionChange,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Text(
+                    text = pet.moodNote,
+                    style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.35),
+                    color = FinikColor.Text42,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                )
+                if (stackedNeeds) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        needs.forEach { need -> NeedIndicator(need, Modifier.fillMaxWidth()) }
                     }
-                    HeroDetails(pet = pet, needs = needs, modifier = Modifier.weight(1f))
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        needs.forEach { need ->
+                            NeedIndicator(need, Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
@@ -229,34 +224,19 @@ private fun HeroCard(
 }
 
 @Composable
-private fun HeroDetails(pet: PetProfile, needs: List<NeedLevel>, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = pet.name, style = unbounded(19, lineHeight = 1.1), color = FinikColor.Ink)
-            Text(
-                text = "${pet.stage.name} · ${pet.mood.label}",
-                style = nunito(12.5),
-                color = FinikColor.TextWarm44,
-            )
+private fun NeedIndicator(need: NeedLevel, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(text = need.category.label, style = nunito(11.5), color = FinikColor.Text45)
+            Text(text = "${need.percent}%", style = nunito(11.5), color = FinikColor.Text45)
         }
-        needs.forEach { need ->
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text(text = need.category.label, style = nunito(11.5), color = FinikColor.Text45)
-                    Text(text = "${need.percent}%", style = nunito(11.5), color = FinikColor.Text45)
-                }
-                FinikProgressBar(
-                    progress = need.percent / 100f,
-                    color = if (need.category == SpendCategory.FOOD) FinikColor.FoodBright else need.category.color,
-                    height = 9.dp,
-                )
-            }
-        }
-        Text(
-            text = pet.moodNote,
-            style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.4),
-            color = FinikColor.Text42,
-            modifier = Modifier.padding(top = 2.dp),
+        FinikProgressBar(
+            progress = need.percent / 100f,
+            color = if (need.category == SpendCategory.FOOD) FinikColor.FoodBright else need.category.color,
+            height = 8.dp,
         )
     }
 }
@@ -268,53 +248,91 @@ private fun CareRow(
     planConfirmed: Boolean,
     onCare: (SpendCategory) -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-        actions.forEach { action ->
-            val left = plan.entry(action.category).left
-            val canAfford = planConfirmed && left >= action.cost
-            CareButton(action = action, left = left, enabled = canAfford, onClick = { onCare(action.category) })
+    if (LocalDensity.current.fontScale > 1.2f) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            actions.forEach { action ->
+                val left = plan.entry(action.category).left
+                CareButton(
+                    action = action,
+                    left = left,
+                    enabled = planConfirmed && left >= action.cost,
+                    horizontal = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onCare(action.category) },
+                )
+            }
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            actions.forEach { action ->
+                val left = plan.entry(action.category).left
+                CareButton(
+                    action = action,
+                    left = left,
+                    enabled = planConfirmed && left >= action.cost,
+                    horizontal = false,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onCare(action.category) },
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun RowScope.CareButton(
+private fun CareButton(
     action: CareAction,
     left: Int,
     enabled: Boolean,
+    horizontal: Boolean,
+    modifier: Modifier,
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(16.dp)
-    Column(
-        modifier = Modifier
-            .weight(1f)
-            .heightIn(min = 94.dp)
+    val container = modifier
+            .heightIn(min = if (horizontal) 70.dp else 94.dp)
             .clip(shape)
             .background(if (enabled) FinikColor.Surface else FinikColor.SurfaceSoft)
             .border(1.dp, if (enabled) FinikColor.Border else FinikColor.RedBorderCare, shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
-    ) {
-        Icon(
-            imageVector = when (action.category) {
-                SpendCategory.FOOD -> FinikIcons.Food
-                SpendCategory.WATER -> FinikIcons.Water
-                SpendCategory.PLAY -> FinikIcons.Play
-                SpendCategory.SAVE -> FinikIcons.Goal
-            },
-            contentDescription = null,
-            modifier = Modifier.size(26.dp),
-            tint = action.category.color,
-        )
-        Text(text = action.label, style = nunito(14), color = FinikColor.Ink)
-        Text(
-            text = "${action.cost} из $left · ${action.category.label}",
-            style = nunito(11.5),
-            color = if (enabled) FinikColor.Text48 else FinikColor.RedCost,
-        )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = if (horizontal) 14.dp else 6.dp, vertical = 10.dp)
+    val icon = when (action.category) {
+        SpendCategory.FOOD -> FinikIcons.Food
+        SpendCategory.WATER -> FinikIcons.Water
+        SpendCategory.PLAY -> FinikIcons.Play
+        SpendCategory.SAVE -> FinikIcons.Goal
     }
+    if (horizontal) {
+        Row(
+            modifier = container,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(26.dp), tint = action.category.color)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                CareButtonText(action, left, enabled)
+            }
+        }
+    } else {
+        Column(
+            modifier = container,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(26.dp), tint = action.category.color)
+            CareButtonText(action, left, enabled)
+        }
+    }
+}
+
+@Composable
+private fun CareButtonText(action: CareAction, left: Int, enabled: Boolean) {
+    Text(text = action.label, style = nunito(14), color = FinikColor.Ink)
+    Text(
+        text = "${action.cost} из $left · ${action.category.label}",
+        style = nunito(11.5),
+        color = if (enabled) FinikColor.Text48 else FinikColor.RedCost,
+    )
 }
 
 @Composable

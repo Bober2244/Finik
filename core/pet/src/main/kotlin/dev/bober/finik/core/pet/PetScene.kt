@@ -77,6 +77,7 @@ internal fun PetScene(
     action: PetAnimation,
     actionEventId: Long,
     animate: Boolean,
+    modelScaleMultiplier: Float,
     onSceneReady: () -> Unit,
     onSceneFailure: () -> Unit,
     onSceneRetry: () -> Unit,
@@ -85,7 +86,7 @@ internal fun PetScene(
 ) {
     var retry by remember { mutableIntStateOf(0) }
     key(retry) {
-        PetSceneSession(species, stageIndex, appearance, mood, action, actionEventId, animate, onSceneReady, onSceneFailure, onInteractionChange, modifier) {
+        PetSceneSession(species, stageIndex, appearance, mood, action, actionEventId, animate, modelScaleMultiplier, onSceneReady, onSceneFailure, onInteractionChange, modifier) {
             onSceneRetry()
             retry++
         }
@@ -101,6 +102,7 @@ private fun PetSceneSession(
     action: PetAnimation,
     actionEventId: Long,
     animate: Boolean,
+    modelScaleMultiplier: Float,
     onSceneReady: () -> Unit,
     onSceneFailure: () -> Unit,
     onInteractionChange: (Boolean) -> Unit,
@@ -176,7 +178,7 @@ private fun PetSceneSession(
                 }
             }
             val height = (asset.instance.model.boundingBox.halfExtent[1] * 2f).coerceAtLeast(.01f)
-            val modelScale = (1.70f + stageIndex.coerceIn(0, 4) * .075f) / height
+            val modelScale = (1.70f + stageIndex.coerceIn(0, 4) * .075f) * modelScaleMultiplier / height
             SceneView(
                 modifier = Modifier.fillMaxSize(),
                 engine = engine,
