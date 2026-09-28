@@ -42,7 +42,11 @@ import dev.bober.finik.core.pet.PetFigureSpec
 
 /** Preview is local until Save; the repository persists the entire appearance atomically. */
 @Composable
-internal fun PetCustomization(pet: PetProfile, onSave: (PetAppearance) -> Unit) {
+internal fun PetCustomization(
+    pet: PetProfile,
+    onSave: (PetAppearance) -> Unit,
+    onPetInteractionChange: (Boolean) -> Unit,
+) {
     var draft by remember(pet.appearance, pet.species) { mutableStateOf(pet.appearance) }
     var action by remember { mutableStateOf(PetAnimation.IDLE) }
     var actionEventId by remember { mutableLongStateOf(0L) }
@@ -56,6 +60,7 @@ internal fun PetCustomization(pet: PetProfile, onSave: (PetAppearance) -> Unit) 
                 appearance = draft,
                 action = action,
                 actionEventId = actionEventId,
+                onInteractionChange = onPetInteractionChange,
             )
         }
         Text("Проведите пальцем по сове, чтобы повернуть её. Масштаб меняется двумя пальцами.", style = nunito(12), color = FinikColor.Text50)

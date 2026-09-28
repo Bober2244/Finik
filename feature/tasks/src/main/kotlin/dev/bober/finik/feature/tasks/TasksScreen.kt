@@ -14,10 +14,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,10 +27,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.CoinIcon
+import dev.bober.finik.core.designsystem.component.FinikIcons
+import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
 import dev.bober.finik.core.designsystem.component.ScreenTitle
 import dev.bober.finik.core.designsystem.component.TagChip
 import dev.bober.finik.core.designsystem.theme.FinikColor
@@ -58,6 +64,7 @@ internal fun TasksScreen(
 ) {
     var quizTaskId by rememberSaveable { mutableStateOf<String?>(null) }
     var scenarioId by rememberSaveable { mutableStateOf<String?>(null) }
+    var unavailable by rememberSaveable { mutableStateOf<String?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -70,15 +77,11 @@ internal fun TasksScreen(
         ) {
             val done = tasks.count { it.done }
             val available = tasks.filter { !it.done }.sumOf { it.reward }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom,
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 ScreenTitle(text = "Задания")
                 Text(
-                    text = "$done/${tasks.size} · $available монет доступно",
-                    style = nunito(13, FontWeight.ExtraBold),
+                    text = "Выполнено $done из ${tasks.size} · можно получить $available монет",
+                    style = nunito(14, FontWeight.ExtraBold),
                     color = FinikColor.Text44,
                 )
             }
@@ -87,12 +90,16 @@ internal fun TasksScreen(
                     task = task,
                     onClick = {
                         when (task.target) {
-                            TaskTarget.QUIZ -> quizTaskId = task.id
-                            TaskTarget.SCENARIO -> scenarioId = task.id
+                            TaskTarget.QUIZ -> if (quiz.isNotEmpty()) quizTaskId = task.id else unavailable = "Урок пока недоступен. Попробуй позже."
+                            TaskTarget.SCENARIO -> if (scenarios.any { it.id == task.id }) scenarioId = task.id else unavailable = "Ситуация пока недоступна. Попробуй позже."
                             TaskTarget.PLAN -> onOpenPlan()
                             TaskTarget.GOAL -> onOpenGoal()
                             TaskTarget.SHOP -> onOpenShop()
-                            null -> Unit
+                            null -> unavailable = if (task.goalCount > 0) {
+                                "Прогресс: ${task.progress} из ${task.goalCount}. Выполни игровые действия из описания задания."
+                            } else {
+                                "Это задание выполняется во время игры. Следуй его описанию."
+                            }
                         }
                     },
                 )
@@ -100,7 +107,8 @@ internal fun TasksScreen(
         }
 
         if (quizTaskId != null) {
-            val task = tasks.first { it.id == quizTaskId }
+            val task = tasks.firstOrNull { it.id == quizTaskId }
+            if (task != null) {
             QuizSheet(
                 questions = quiz,
                 onClose = { quizTaskId = null },
@@ -109,11 +117,12 @@ internal fun TasksScreen(
                     quizTaskId = null
                 },
             )
+            }
         }
         scenarioId?.let { id ->
-            val task = tasks.first { it.id == id }
+            val task = tasks.firstOrNull { it.id == id }
             val scenario = scenarios.firstOrNull { it.id == id }
-            if (scenario != null) {
+            if (scenario != null && task != null) {
                 ScenarioSheet(
                     scenario = scenario,
                     onClose = { scenarioId = null },
@@ -123,6 +132,15 @@ internal fun TasksScreen(
                     },
                 )
             }
+        }
+        unavailable?.let { message ->
+            FinikConfirmSheet(
+                title = "Задание недоступно",
+                body = message,
+                confirmText = "Понятно",
+                onConfirm = { unavailable = null },
+                onDismiss = { unavailable = null },
+            )
         }
     }
 }
@@ -137,7 +155,8 @@ private fun TaskCard(task: TaskItem, onClick: () -> Unit) {
             .clip(shape)
             .background(if (task.done) FinikColor.GreenSelected else FinikColor.Surface)
             .border(1.dp, if (task.done) FinikColor.GreenBorderDone else FinikColor.Border, shape)
-            .clickable(onClick = onClick)
+            .clickable(enabled = !task.done, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "${task.title}. ${if (task.done) "Выполнено" else task.subtitle}. Награда ${task.reward} монет" }
             .padding(13.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -146,14 +165,23 @@ private fun TaskCard(task: TaskItem, onClick: () -> Unit) {
             modifier = Modifier
                 .size(34.dp)
                 .background(
-                    if (task.done) FinikColor.Green else FinikColor.Chip,
-                    if (task.kind == TaskKind.WEEK) RoundedCornerShape(9.dp) else CircleShape,
+                    if (task.done) FinikColor.Green else task.kind.chipBackground,
+                    RoundedCornerShape(9.dp),
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            if (task.done) {
-                Box(modifier = Modifier.size(12.dp).background(FinikColor.Surface, RoundedCornerShape(3.dp)))
-            }
+            Icon(
+                imageVector = when {
+                    task.done -> FinikIcons.TaskDone
+                    task.kind == TaskKind.LESSON -> FinikIcons.TaskLesson
+                    task.kind == TaskKind.WEEK -> FinikIcons.TaskWeek
+                    task.kind == TaskKind.HABIT -> FinikIcons.TaskHabit
+                    else -> FinikIcons.TaskDay
+                },
+                contentDescription = null,
+                modifier = Modifier.size(21.dp),
+                tint = if (task.done) MaterialTheme.colorScheme.onPrimary else task.kind.chipInk,
+            )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(text = task.title, style = nunito(15, lineHeight = 1.25), color = FinikColor.Ink)
@@ -163,11 +191,10 @@ private fun TaskCard(task: TaskItem, onClick: () -> Unit) {
                     background = task.kind.chipBackground,
                     ink = task.kind.chipInk,
                 )
-                Text(
-                    text = if (task.done) "выполнено" else task.subtitle,
-                    style = nunito(11.5, FontWeight.SemiBold),
-                    color = FinikColor.Text50,
-                )
+                Text(text = if (task.done) "выполнено" else task.subtitle, style = nunito(13, FontWeight.SemiBold), color = FinikColor.Text50)
+            }
+            if (!task.done && task.goalCount > 0) {
+                Text(text = "Прогресс: ${task.progress} из ${task.goalCount}", style = nunito(13), color = FinikColor.Text46)
             }
         }
         Row(

@@ -1,5 +1,7 @@
 package dev.bober.finik.feature.home.navigation
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -8,6 +10,7 @@ import androidx.compose.runtime.setValue
 import dev.bober.finik.core.model.SpendCategory
 import dev.bober.finik.core.pet.PetAnimation
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
@@ -26,6 +29,7 @@ fun NavController.navigateToHome(navOptions: NavOptions? = null) {
 }
 
 fun NavGraphBuilder.homeScreen(
+    contentPadding: PaddingValues,
     onOpenPlan: () -> Unit,
     onOpenGoal: () -> Unit,
     onOpenTasks: () -> Unit,
@@ -48,6 +52,7 @@ fun NavGraphBuilder.homeScreen(
             }
         }
         HomeScreen(
+            modifier = Modifier.padding(contentPadding),
             onOpenPlan = onOpenPlan,
             pet = state.pet,
             needs = state.needs,
@@ -55,7 +60,6 @@ fun NavGraphBuilder.homeScreen(
             care = state.care,
             streak = state.streak,
             planConfirmed = state.planConfirmed,
-            demoMode = state.demoMode,
             goalTitle = state.selectedGoal.title,
             goalSaved = state.selectedGoal.saved,
             goalTarget = state.selectedGoal.target,

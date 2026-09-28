@@ -8,6 +8,8 @@ import dev.bober.finik.core.model.PetEyeColor
 import dev.bober.finik.core.model.PetFurColor
 import dev.bober.finik.core.model.PetPotStyle
 import dev.bober.finik.core.model.PetSpecies
+import dev.bober.finik.core.model.SavingsGoal
+import dev.bober.finik.core.model.TransactionKind
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -73,5 +75,66 @@ class AnimalSnapshotTest {
         assertEquals(PetFurColor.SNOWY_WHITE, PetFurColor.fromStored("SILVER"))
         assertEquals(PetAccessory.HAT, PetAccessory.fromStored("cap"))
         assertEquals(PetAccessory.MEDAL, PetAccessory.fromStored("bow"))
+    }
+
+    @Test
+    fun transactionHistoryAndMotionPreferenceSurviveRestartWithLegacyDefaults() {
+        var original = GameEngine.confirmPlan(GameEngine.applyAdvice(fresh()).state).state
+        original = GameEngine.deposit(original, 8).state
+        original = GameEngine.closeWeek(original).state.copy(motionOn = false)
+
+        val restored = decodeSnapshot(original.encode(), catalog)
+        assertEquals(original.transactions, restored.transactions)
+        assertEquals(false, restored.motionOn)
+        assertEquals(8.0, GameEngine.averageActualWeeklyContribution(restored, restored.selectedGoalId)!!, 0.001)
+        assertEquals(TransactionKind.DEPOSIT, restored.transactions[1].kind)
+
+        val fields = Json.parseToJsonElement(original.encode()).jsonObject.toMutableMap()
+        fields.remove("transactions")
+        fields.remove("motionOn")
+        val legacy = decodeSnapshot(JsonObject(fields).toString(), catalog)
+        assertEquals(emptyList<Any>(), legacy.transactions)
+        assertEquals(true, legacy.motionOn)
+        assertEquals(null, GameEngine.averageActualWeeklyContribution(legacy, legacy.selectedGoalId))
+    }
+
+    @Test
+    fun unknownGoalAndItsSavingsSurviveCatalogChanges() {
+        val custom = SavingsGoal("external_goal", "Поездка", 240, 18, "Моя цель")
+        val original = fresh().copy(
+            goals = catalog.goals + custom,
+            selectedGoalId = custom.id,
+        )
+        val restored = decodeSnapshot(original.encode(), catalog)
+        assertEquals(custom, restored.selectedGoal)
+        val planned = GameEngine.confirmPlan(GameEngine.applyAdvice(restored).state).state
+        assertEquals(23, GameEngine.deposit(planned, 5).state.selectedGoal.saved)
+
+        val oldFields = Json.parseToJsonElement(original.encode()).jsonObject.toMutableMap()
+        oldFields.remove("goalDefinitions")
+        val migrated = decodeSnapshot(JsonObject(oldFields).toString(), catalog)
+        assertEquals("external_goal", migrated.selectedGoalId)
+        assertEquals(18, migrated.selectedGoal.saved)
+    }
+
+    @Test
+    fun streakAndSavingsBadgeSurviveRestartAndLegacySnapshot() {
+        var original = fresh()
+        (11L..16L).forEach { day -> original = GameEngine.dailyOpen(original, day).state }
+        original = GameEngine.confirmPlan(GameEngine.applyAdvice(original).state).state
+        original = GameEngine.deposit(original, 8).state
+        original = GameEngine.closeWeek(original).state
+
+        val restored = decodeSnapshot(original.encode(), catalog)
+        assertEquals(7, restored.consecutiveOpenDays)
+        assertEquals(1, restored.qualifiedSavingsWeeks)
+        assertEquals(true, restored.badges.first { it.name == "Двадцать процентов" }.isDone)
+
+        val oldFields = Json.parseToJsonElement(original.encode()).jsonObject.toMutableMap()
+        oldFields.remove("consecutiveOpenDays")
+        oldFields.remove("qualifiedSavingsWeeks")
+        val migrated = decodeSnapshot(JsonObject(oldFields).toString(), catalog)
+        assertEquals(7, migrated.consecutiveOpenDays)
+        assertEquals(1, migrated.qualifiedSavingsWeeks)
     }
 }

@@ -1,17 +1,23 @@
 package dev.bober.finik.core.pet
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
@@ -22,8 +28,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.model.PetAppearance
+import dev.bober.finik.core.model.PetFurColor
 import dev.bober.finik.core.model.PetMood
 import dev.bober.finik.core.model.PetSpecies
+import kotlinx.coroutines.delay
 
 /** Размер области питомца. Небольшие карточки используют экспортированный Blender-портрет. */
 data class PetFigureSpec(
@@ -31,6 +39,8 @@ data class PetFigureSpec(
     val height: Dp,
     val stageIndex: Int = 0,
     val live3d: Boolean = false,
+    val portraitScale: Float = 1f,
+    val portraitOffsetY: Dp = 0.dp,
 ) {
     companion object {
         val Welcome = PetFigureSpec(150.dp, 160.dp, live3d = true)
@@ -52,6 +62,8 @@ enum class PetAnimation(val clipName: String) {
     THINK("01a0cfcc-7a03-75ac-bde5-e71cb8b79d9e"),
 }
 
+val LocalPetAnimationEnabled = compositionLocalOf { true }
+
 /**
  * Скелетная 3D-сова с шестью текстурами и аксессуарами.
  *
@@ -69,15 +81,31 @@ fun PetFigure(
     action: PetAnimation = PetAnimation.IDLE,
     actionEventId: Long = 0L,
     animate: Boolean = true,
+    onInteractionChange: (Boolean) -> Unit = {},
 ) {
+    val effectiveAnimation = animate && LocalPetAnimationEnabled.current
+    var showLiveScene by remember(spec.live3d) { mutableStateOf(false) }
+    var sceneReady by remember(spec.live3d, spec.stageIndex) { mutableStateOf(false) }
+    var sceneFailed by remember(spec.live3d, spec.stageIndex) { mutableStateOf(false) }
+    LaunchedEffect(spec.live3d) {
+        if (spec.live3d) {
+            // Paint the lightweight portrait first; native 3D loading starts after initial UI.
+            delay(3_000)
+            showLiveScene = true
+        }
+    }
     Box(
         modifier = modifier
             .size(spec.width, spec.height)
-            .semantics { contentDescription = "Сова. Проведите пальцем, чтобы повернуть; сведите пальцы, чтобы изменить масштаб" },
+            .semantics {
+                contentDescription = if (spec.live3d) {
+                    "Сова. Проведите пальцем, чтобы повернуть; сведите пальцы, чтобы изменить масштаб"
+                } else {
+                    "Портрет совы"
+                }
+            },
     ) {
-        if (LocalInspectionMode.current || !spec.live3d) {
-            PetPortrait(species, Modifier.matchParentSize())
-        } else {
+        if (spec.live3d && showLiveScene && !LocalInspectionMode.current) {
             PetScene(
                 species = species,
                 stageIndex = spec.stageIndex,
@@ -85,32 +113,51 @@ fun PetFigure(
                 mood = mood,
                 action = action,
                 actionEventId = actionEventId,
-                animate = animate,
+                animate = effectiveAnimation,
+                onSceneReady = {
+                    sceneReady = true
+                    sceneFailed = false
+                },
+                onSceneFailure = { sceneFailed = true },
+                onSceneRetry = { sceneFailed = false },
+                onInteractionChange = onInteractionChange,
                 modifier = Modifier.matchParentSize(),
+            )
+        }
+        // A presented Filament frame can still be empty while resources warm up.
+        // Keep the portrait above the TextureView until the scene passes its startup gate.
+        val portraitAlpha by animateFloatAsState(
+            targetValue = if (spec.live3d && (sceneReady || sceneFailed)) 0f else 1f,
+            label = "Pet portrait",
+        )
+        if (portraitAlpha > 0f) {
+            PetPortrait(
+                appearance,
+                Modifier.matchParentSize()
+                    .offset(y = spec.portraitOffsetY)
+                    .scale(spec.portraitScale)
+                    .alpha(portraitAlpha),
             )
         }
     }
 }
 
 @Composable
-internal fun PetPortrait(species: PetSpecies, modifier: Modifier = Modifier) {
+internal fun PetPortrait(appearance: PetAppearance, modifier: Modifier = Modifier) {
+    val portrait = when (appearance.furColor) {
+        PetFurColor.BLUE -> R.drawable.pet_owl_cutout
+        PetFurColor.DESERT_SAND -> R.drawable.pet_owl_desert_sand
+        PetFurColor.FIERY_RED -> R.drawable.pet_owl_fiery_red
+        PetFurColor.FOREST_GREEN -> R.drawable.pet_owl_forest_green
+        PetFurColor.NIGHT_PURPLE -> R.drawable.pet_owl_night_purple
+        PetFurColor.SNOWY_WHITE -> R.drawable.pet_owl_snowy_white
+    }
     Image(
-        painter = painterResource(R.drawable.pet_owl),
+        painter = painterResource(portrait),
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = modifier,
     )
-}
-
-/** Лапка вместо растительного бутона на шкале взросления. */
-@Composable
-fun StageAnimal(size: Dp, color: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier.size(size)) {
-        drawOval(color, Offset(this.size.width * .22f, this.size.height * .44f), Size(this.size.width * .56f, this.size.height * .48f))
-        listOf(.16f to .35f, .36f to .18f, .64f to .18f, .84f to .35f).forEach { (x, y) ->
-            drawOval(color, Offset(this.size.width * (x - .115f), this.size.height * (y - .14f)), Size(this.size.width * .23f, this.size.height * .28f))
-        }
-    }
 }
 
 @Preview(showBackground = true)

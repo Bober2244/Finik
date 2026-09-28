@@ -1,6 +1,9 @@
 package dev.bober.finik.feature.shop.navigation
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
@@ -18,11 +21,12 @@ fun NavController.navigateToShop(navOptions: NavOptions? = null) {
     navigate(route = ShopRoute, navOptions = navOptions)
 }
 
-fun NavGraphBuilder.shopScreen() {
+fun NavGraphBuilder.shopScreen(contentPadding: PaddingValues) {
     composable<ShopRoute> {
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
         ShopScreen(
+            modifier = Modifier.padding(contentPadding),
             items = state.shop,
             pet = state.pet,
             onCustomize = vm::customizeAppearance,

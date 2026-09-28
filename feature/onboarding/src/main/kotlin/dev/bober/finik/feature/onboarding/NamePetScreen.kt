@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -59,6 +60,7 @@ internal fun NamePetScreen(
 ) {
     var name by rememberSaveable { mutableStateOfString() }
     var income by rememberSaveable { mutableStateOfInt(SampleData.WEEKLY_INCOME) }
+    var petInteractionActive by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -66,7 +68,7 @@ internal fun NamePetScreen(
             .background(FinikColor.Background)
             .systemBarsPadding()
             .imePadding()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState(), enabled = !petInteractionActive)
             .padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
@@ -76,7 +78,13 @@ internal fun NamePetScreen(
         }
 
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            PetFigure(species = species, spec = PetFigureSpec.Naming, appearance = appearance, action = PetAnimation.GREET)
+            PetFigure(
+                species = species,
+                spec = PetFigureSpec.Naming,
+                appearance = appearance,
+                action = PetAnimation.GREET,
+                onInteractionChange = { petInteractionActive = it },
+            )
         }
 
         NameField(value = name, onValueChange = { name = it })

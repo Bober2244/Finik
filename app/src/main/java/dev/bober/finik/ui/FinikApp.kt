@@ -1,14 +1,26 @@
 package dev.bober.finik.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -30,7 +44,10 @@ import dev.bober.finik.core.designsystem.component.FinikBottomNav
 import dev.bober.finik.core.designsystem.component.FinikShellTopBar
 import dev.bober.finik.core.designsystem.component.FinikToast
 import dev.bober.finik.core.designsystem.theme.FinikColor
+import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.navigation.topLevelNavOptions
+import dev.bober.finik.core.pet.LocalPetAnimationEnabled
+import dev.bober.finik.core.pet.PetRuntimeProvider
 import dev.bober.finik.feature.goal.navigation.navigateToGoal
 import dev.bober.finik.feature.growth.navigation.navigateToGrowth
 import dev.bober.finik.feature.home.navigation.HomeRoute
@@ -53,6 +70,7 @@ fun FinikApp(
     vm: FinikViewModel = koinViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val loadProblem by vm.loadProblem.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -65,7 +83,7 @@ fun FinikApp(
     }
     LaunchedEffect(toast) {
         if (toast != null) {
-            delay(3200)
+            delay(5000)
             toast = null
         }
     }
@@ -81,14 +99,27 @@ fun FinikApp(
     val currentTab = TopLevelDestination.entries.firstOrNull { destination ->
         currentDestination?.hierarchy?.any { it.hasRoute(destination.route) } == true
     }
+    // Keep both Scaffold slots measured while a nested page slides over the shell.
+    // Moving the bars by the same distance avoids a layout jump or overlapping headers.
+    val shellAvailable = state.ready && state.onboarded && loadProblem == null
+    val shellVisible = shellAvailable && currentTab != null
+    val shellOffset by animateFloatAsState(
+        targetValue = if (shellVisible) 0f else -1f,
+        animationSpec = tween(280),
+        label = "shellOffset",
+    )
+    val shellModifier = Modifier
+        .graphicsLayer { translationX = size.width * shellOffset }
+        .then(if (shellVisible) Modifier else Modifier.clearAndSetSemantics { })
 
+    CompositionLocalProvider(LocalPetAnimationEnabled provides state.motionOn) {
     Box(modifier = modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = FinikColor.Background,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
-                if (currentTab != null) {
+                if (shellAvailable) {
                     FinikShellTopBar(
                         coins = state.spendableFree,
                         stageName = state.pet.stage.name,
@@ -96,27 +127,50 @@ fun FinikApp(
                         onStageClick = { navController.navigateToGrowth() },
                         onProfileClick = { navController.navigateToProfile() },
                         onHelpClick = { navController.navigateToHelp() },
+                        modifier = shellModifier,
+                        enabled = shellVisible,
                     )
                 }
             },
             bottomBar = {
-                if (currentTab != null) {
+                if (shellAvailable) {
                     FinikBottomNav(
                         items = TopLevelDestination.entries.map { it.toNavItem() },
-                        selectedId = currentTab.name,
+                        selectedId = currentTab?.name,
                         onItemClick = { item ->
                             navController.navigateToTopLevel(TopLevelDestination.valueOf(item.id))
                         },
+                        modifier = shellModifier,
+                        enabled = shellVisible,
                     )
                 }
             },
         ) { innerPadding ->
-            if (state.ready) {
-                FinikNavHost(
-                    navController = navController,
-                    startOnboarding = !state.onboarded,
+            if (loadProblem != null) {
+                SaveRecoveryScreen(
+                    problem = loadProblem ?: "Не удалось открыть сохранение.",
+                    onRetry = { vm.retryLoad() },
+                    onDiscard = { vm.resetProfile(localOnly = true) },
                     modifier = Modifier.padding(innerPadding),
                 )
+            } else if (state.ready) {
+                PetRuntimeProvider {
+                    FinikNavHost(
+                        navController = navController,
+                        startOnboarding = !state.onboarded,
+                        topLevelPadding = innerPadding,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CircularProgressIndicator(color = FinikColor.Green)
+                    Text(text = "Загружаем Финика…", style = nunito(16), color = FinikColor.Ink)
+                }
             }
         }
         AnimatedVisibility(
@@ -128,6 +182,42 @@ fun FinikApp(
                 .padding(start = 14.dp, end = 14.dp, bottom = 88.dp),
         ) {
             toast?.let { FinikToast(text = it.text, warning = it.warning) }
+        }
+    }
+    }
+}
+
+@Composable
+private fun SaveRecoveryScreen(
+    problem: String,
+    onRetry: () -> Unit,
+    onDiscard: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var confirmDiscard by remember { mutableStateOf(false) }
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Удалить сохранение на устройстве?") },
+            text = { Text("Игровой прогресс на этом устройстве будет удалён. Это действие нельзя отменить.") },
+            confirmButton = {
+                TextButton(onClick = { confirmDiscard = false; onDiscard() }) { Text("Удалить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) { Text("Отмена") }
+            },
+        )
+    }
+    Column(
+        modifier = modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(text = "Не удалось открыть профиль", style = nunito(24), color = FinikColor.Ink)
+        Text(text = problem, style = nunito(16), color = FinikColor.Ink, modifier = Modifier.padding(top = 12.dp, bottom = 24.dp))
+        Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Повторить") }
+        OutlinedButton(onClick = { confirmDiscard = true }, modifier = Modifier.fillMaxWidth()) {
+            Text("Удалить локальное сохранение")
         }
     }
 }

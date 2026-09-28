@@ -7,6 +7,7 @@ import dev.bober.finik.core.model.GameSnapshot
 import dev.bober.finik.core.model.HistoryTone
 import dev.bober.finik.core.model.HistoryWeek
 import dev.bober.finik.core.model.LogTone
+import dev.bober.finik.core.model.MoneyTransaction
 import dev.bober.finik.core.model.NeedLevel
 import dev.bober.finik.core.model.PetAppearance
 import dev.bober.finik.core.model.PetFurColor
@@ -18,8 +19,10 @@ import dev.bober.finik.core.model.PetProfile
 import dev.bober.finik.core.model.PetSpecies
 import dev.bober.finik.core.model.PlanEntry
 import dev.bober.finik.core.model.ReportRow
+import dev.bober.finik.core.model.SavingsGoal
 import dev.bober.finik.core.model.SpendCategory
 import dev.bober.finik.core.model.StreakDay
+import dev.bober.finik.core.model.TransactionKind
 import dev.bober.finik.core.model.WeekLogEntry
 import dev.bober.finik.core.model.WeekPlan
 import dev.bober.finik.core.model.WeekReport
@@ -54,6 +57,7 @@ internal data class SnapshotDto(
     val doneTaskIds: List<String>,
     val selectedGoalId: String,
     val goalSaved: Map<String, Int> = emptyMap(),
+    val goalDefinitions: List<GoalDto> = emptyList(),
     val history: List<HistoryDto> = emptyList(),
     val weekLog: List<LogDto> = emptyList(),
     val report: ReportDto? = null,
@@ -78,6 +82,10 @@ internal data class SnapshotDto(
     val ownedCosmetics: List<String> = emptyList(),
     val lastIncomeNote: String = "",
     val lastPurchaseNote: String = "",
+    val transactions: List<TransactionDto> = emptyList(),
+    val motionOn: Boolean = true,
+    val consecutiveOpenDays: Int? = null,
+    val qualifiedSavingsWeeks: Int? = null,
 )
 
 @Serializable
@@ -87,10 +95,30 @@ internal data class PlanDto(val category: String, val planned: Int, val spent: I
 internal data class NeedDto(val category: String, val percent: Int)
 
 @Serializable
+internal data class GoalDto(
+    val id: String,
+    val title: String,
+    val target: Int,
+    val saved: Int,
+    val why: String = "",
+    val catalogSlug: String = id,
+)
+
+@Serializable
 internal data class HistoryDto(val label: String, val value: Int, val tone: String)
 
 @Serializable
 internal data class LogDto(val text: String, val delta: String, val tone: String, val rounded: Boolean)
+
+@Serializable
+internal data class TransactionDto(
+    val week: Int,
+    val kind: String,
+    val amount: Int,
+    val source: String,
+    val category: String? = null,
+    val goalId: String? = null,
+)
 
 @Serializable
 internal data class ReportDto(
@@ -118,6 +146,7 @@ internal fun GameSnapshot.toDto() = SnapshotDto(
     doneTaskIds = tasks.filter { it.done }.map { it.id },
     selectedGoalId = selectedGoalId,
     goalSaved = goals.associate { it.id to it.saved },
+    goalDefinitions = goals.map { GoalDto(it.id, it.title, it.target, it.saved, it.why, it.catalogSlug) },
     history = history.map { HistoryDto(it.label, it.value, it.tone.name) },
     weekLog = weekLog.map { LogDto(it.text, it.delta, it.tone.name, it.rounded) },
     report = report?.let { r ->
@@ -143,11 +172,30 @@ internal fun GameSnapshot.toDto() = SnapshotDto(
     ownedCosmetics = ownedCosmetics,
     lastIncomeNote = lastIncomeNote,
     lastPurchaseNote = lastPurchaseNote,
+    transactions = transactions.map {
+        TransactionDto(it.week, it.kind.name, it.amount, it.source, it.category?.name, it.goalId)
+    },
+    motionOn = motionOn,
+    consecutiveOpenDays = consecutiveOpenDays,
+    qualifiedSavingsWeeks = qualifiedSavingsWeeks,
 )
 
 internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
     val labels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
     val total = totalXp
+    val restoredGoals = if (goalDefinitions.isNotEmpty()) {
+        goalDefinitions.filter { it.id.isNotBlank() && it.target > 0 }.map {
+            SavingsGoal(it.id, it.title, it.target, it.saved.coerceAtLeast(0), it.why, it.catalogSlug)
+        }
+    } else {
+        catalog.goals.map { it.copy(saved = (goalSaved[it.id] ?: 0).coerceAtLeast(0)) } +
+            goalSaved.filterKeys { id -> catalog.goals.none { it.id == id } }.map { (id, saved) ->
+                SavingsGoal(id, "Ранее выбранная цель", maxOf(150, saved), saved.coerceAtLeast(0))
+            }
+    }
+    val allGoals = restoredGoals + catalog.goals.filterNot { candidate -> restoredGoals.any { it.id == candidate.id } }
+    val validSelectedGoalId = selectedGoalId.takeIf { id -> allGoals.any { it.id == id } }
+        ?: allGoals.first().id
     return GameSnapshot(
         onboarded = onboarded,
         pet = PetProfile(
@@ -188,8 +236,8 @@ internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
             if (task.id in doneTaskIds) task.copy(done = true, subtitle = "выполнено") else task
         },
         shop = catalog.shop,
-        goals = catalog.goals.map { it.copy(saved = goalSaved[it.id] ?: 0) },
-        selectedGoalId = selectedGoalId,
+        goals = allGoals,
+        selectedGoalId = validSelectedGoalId,
         history = history.map {
             HistoryWeek(
                 label = it.label,
@@ -229,5 +277,22 @@ internal fun SnapshotDto.toDomain(catalog: ContentCatalog): GameSnapshot {
         ownedCosmetics = ownedCosmetics,
         lastIncomeNote = lastIncomeNote,
         lastPurchaseNote = lastPurchaseNote.animalText(),
+        transactions = transactions.mapNotNull { tx ->
+            val kind = runCatching { TransactionKind.valueOf(tx.kind) }.getOrNull()
+            if (kind == null || tx.week < 1 || tx.amount <= 0) null else MoneyTransaction(
+                week = tx.week,
+                kind = kind,
+                amount = tx.amount,
+                source = tx.source.animalText(),
+                category = tx.category?.let { runCatching { SpendCategory.valueOf(it) }.getOrNull() },
+                goalId = tx.goalId,
+            )
+        },
+        motionOn = motionOn,
+        consecutiveOpenDays = (consecutiveOpenDays ?: streak.count { it }).coerceAtLeast(0),
+        qualifiedSavingsWeeks = (qualifiedSavingsWeeks ?: run {
+            val saved = report?.rows?.firstOrNull { it.category == SpendCategory.SAVE.name }?.spent ?: 0
+            if (weeklyIncome > 0 && saved.toLong() * 5 >= weeklyIncome) 1 else 0
+        }).coerceAtLeast(0),
     )
 }

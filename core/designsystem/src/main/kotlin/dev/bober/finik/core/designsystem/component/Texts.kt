@@ -65,7 +65,7 @@ fun BackHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        SquareIconButton(onClick = onBack, size = 42.dp) {
+        SquareIconButton(onClick = onBack, size = 48.dp, contentDescription = "Назад") {
             Text(text = "←", style = nunito(18), color = FinikColor.Ink)
         }
         ScreenTitle(text = title)

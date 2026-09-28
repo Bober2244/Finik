@@ -36,6 +36,7 @@ import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.designsystem.theme.unbounded
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +57,7 @@ internal fun PickPetScreen(
 ) {
     var fur by rememberSaveable { mutableStateOf(PetFurColor.BLUE.name) }
     var accessoryIds by rememberSaveable { mutableStateOf("") }
+    var petInteractionActive by remember { mutableStateOf(false) }
     val appearance = PetAppearance(
         furColor = PetFurColor.fromStored(fur),
         accessories = accessoryIds.toSelectedAccessories(),
@@ -65,7 +67,7 @@ internal fun PickPetScreen(
             .fillMaxSize()
             .background(FinikColor.Background)
             .systemBarsPadding()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState(), enabled = !petInteractionActive)
             .padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -80,6 +82,7 @@ internal fun PickPetScreen(
                 spec = PetFigureSpec.hero(0).copy(width = 210.dp, height = 230.dp),
                 appearance = appearance,
                 action = PetAnimation.GREET,
+                onInteractionChange = { petInteractionActive = it },
             )
         }
         PetOptionCard()

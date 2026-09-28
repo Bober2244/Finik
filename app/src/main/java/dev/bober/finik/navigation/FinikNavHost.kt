@@ -1,7 +1,11 @@
 package dev.bober.finik.navigation
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.navOptions
@@ -29,16 +33,45 @@ import dev.bober.finik.feature.tasks.navigation.tasksScreen
 fun FinikNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    topLevelPadding: PaddingValues = PaddingValues(),
     startOnboarding: Boolean = true,
 ) {
     NavHost(
         navController = navController,
         startDestination = if (startOnboarding) OnboardingGraph else HomeRoute,
         modifier = modifier,
-        enterTransition = FinikTransitions.enter,
-        exitTransition = FinikTransitions.exit,
-        popEnterTransition = FinikTransitions.popEnter,
-        popExitTransition = FinikTransitions.popExit,
+        enterTransition = {
+            val transition = if (initialState.isTopLevel() && targetState.isTopLevel()) {
+                FinikTransitions.enter
+            } else {
+                FinikTransitions.nestedEnter
+            }
+            transition()
+        },
+        exitTransition = {
+            val transition = if (initialState.isTopLevel() && targetState.isTopLevel()) {
+                FinikTransitions.exit
+            } else {
+                FinikTransitions.nestedExit
+            }
+            transition()
+        },
+        popEnterTransition = {
+            val transition = if (initialState.isTopLevel() && targetState.isTopLevel()) {
+                FinikTransitions.popEnter
+            } else {
+                FinikTransitions.nestedPopEnter
+            }
+            transition()
+        },
+        popExitTransition = {
+            val transition = if (initialState.isTopLevel() && targetState.isTopLevel()) {
+                FinikTransitions.popExit
+            } else {
+                FinikTransitions.nestedPopExit
+            }
+            transition()
+        },
     ) {
         onboardingGraph(
             navController = navController,
@@ -50,19 +83,21 @@ fun FinikNavHost(
         )
 
         homeScreen(
+            contentPadding = topLevelPadding,
             onOpenPlan = { navController.navigateToPlan(topLevelNavOptions<HomeRoute>()) },
             onOpenGoal = { navController.navigateToGoal(topLevelNavOptions<HomeRoute>()) },
             onOpenTasks = { navController.navigateToTasks(topLevelNavOptions<HomeRoute>()) },
             onCloseWeek = { navController.navigateToReport() },
         )
-        planScreen()
+        planScreen(contentPadding = topLevelPadding)
         tasksScreen(
+            contentPadding = topLevelPadding,
             onOpenPlan = { navController.navigateToPlan(topLevelNavOptions<HomeRoute>()) },
             onOpenGoal = { navController.navigateToGoal(topLevelNavOptions<HomeRoute>()) },
             onOpenShop = { navController.navigateToShop(topLevelNavOptions<HomeRoute>()) },
         )
-        shopScreen()
-        goalScreen()
+        shopScreen(contentPadding = topLevelPadding)
+        goalScreen(contentPadding = topLevelPadding)
 
         growthScreen(
             onBack = { navController.popBackStack() },
@@ -75,3 +110,8 @@ fun FinikNavHost(
         )
     }
 }
+
+private fun NavBackStackEntry.isTopLevel(): Boolean =
+    TopLevelDestination.entries.any { tab ->
+        destination.hierarchy.any { it.hasRoute(tab.route) }
+    }

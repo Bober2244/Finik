@@ -1,8 +1,8 @@
 package dev.bober.finik.core.model
 
 /**
- * Данные-заглушка, повторяющие начальное состояние прототипа «Финик 8–11».
- * Нужны для превью Compose; живое состояние приходит из FinikRepository.
+ * Встроенный учебный каталог и примеры состояния для превью Compose.
+ * Игровой профиль и результаты действий создаёт и хранит FinikRepository.
  */
 object SampleData {
 
@@ -58,6 +58,9 @@ object SampleData {
         TaskItem("s-save-2", "Снять из копилки?", "ситуация", TaskKind.WEEK, 6, false, TaskTarget.SCENARIO, TaskTheme.SAVE),
         TaskItem("q1", "Мини-урок: цена и скидка", "3 вопроса", TaskKind.LESSON, 6, false, TaskTarget.QUIZ, TaskTheme.BUY),
         TaskItem("s-buy-1", "Не хватает монет. Что делать?", "ситуация", TaskKind.DAY, 6, false, TaskTarget.SCENARIO, TaskTheme.BUY),
+        TaskItem("action-plan", "Собери план и проживи период", "заверши период с покупкой или накоплением", TaskKind.WEEK, 4, false, TaskTarget.PLAN, TaskTheme.PLAN),
+        TaskItem("action-save", "Отложи монеты на мечту", "пополни копилку", TaskKind.HABIT, 4, false, TaskTarget.GOAL, TaskTheme.SAVE),
+        TaskItem("action-buy", "Выбери покупку по плану", "купи товар в лавке", TaskKind.DAY, 4, false, TaskTarget.SHOP, TaskTheme.BUY),
     )
 
     val quiz: List<QuizQuestion> = listOf(

@@ -2,10 +2,16 @@ package dev.bober.finik.core.pet
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.PixelFormat
+import android.media.Image
+import android.media.ImageReader
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.MotionEvent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +56,10 @@ import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberEnvironmentLoader
+import io.github.sceneview.rememberMaterialLoader
 import io.github.sceneview.rememberModelLoader
+import io.github.sceneview.rememberSurfaceMirrorer
 import io.github.sceneview.texture.ImageTexture
 import io.github.sceneview.texture.setBitmap
 import kotlinx.coroutines.CancellationException
@@ -67,11 +77,16 @@ internal fun PetScene(
     action: PetAnimation,
     actionEventId: Long,
     animate: Boolean,
+    onSceneReady: () -> Unit,
+    onSceneFailure: () -> Unit,
+    onSceneRetry: () -> Unit,
+    onInteractionChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var retry by remember { mutableIntStateOf(0) }
     key(retry) {
-        PetSceneSession(species, stageIndex, appearance, mood, action, actionEventId, animate, modifier) {
+        PetSceneSession(species, stageIndex, appearance, mood, action, actionEventId, animate, onSceneReady, onSceneFailure, onInteractionChange, modifier) {
+            onSceneRetry()
             retry++
         }
     }
@@ -86,13 +101,20 @@ private fun PetSceneSession(
     action: PetAnimation,
     actionEventId: Long,
     animate: Boolean,
+    onSceneReady: () -> Unit,
+    onSceneFailure: () -> Unit,
+    onInteractionChange: (Boolean) -> Unit,
     modifier: Modifier,
     onRetry: () -> Unit,
 ) {
-    // The helpers own native resources and destroy them when this scene leaves composition.
-    // SceneView suspends its frame loop with the host lifecycle when the app is backgrounded.
-    val engine = rememberEngine()
-    val modelLoader = rememberModelLoader(engine)
+    // Scene-specific resources leave with this route; shared loaders survive tab switches.
+    // SceneView suspends its frame loop with the host lifecycle when backgrounded.
+    val runtime = LocalPetRuntime.current
+    val engine = runtime?.engine ?: rememberEngine()
+    val modelLoader = runtime?.modelLoader ?: rememberModelLoader(engine)
+    val materialLoader = runtime?.materialLoader ?: rememberMaterialLoader(engine)
+    val environmentLoader = runtime?.environmentLoader ?: rememberEnvironmentLoader(engine)
+    val surfaceMirrorer = rememberSurfaceMirrorer()
     val loaded = rememberPetModel(engine, modelLoader, species.modelAssetPath)
     var frameFailed by remember { mutableStateOf(false) }
     val cameraNode = rememberCameraNode(engine) {
@@ -107,25 +129,88 @@ private fun PetSceneSession(
     Box(modifier) {
         val asset = loaded.asset
         if (asset != null && !frameFailed) {
+            val currentOnInteractionChange by rememberUpdatedState(onInteractionChange)
+            var isInteracting by remember(asset) { mutableStateOf(false) }
+            DisposableEffect(asset) {
+                onDispose {
+                    if (isInteracting) currentOnInteractionChange(false)
+                }
+            }
             val selectedColor = rememberPetColor(appearance.furColor)
             val controller = remember(asset) { PetSceneController(asset, engine) }
             var firstFrameRendered by remember(asset) { mutableStateOf(false) }
+            var sceneHasPixels by remember(asset) { mutableStateOf(false) }
+            var probeFailed by remember(asset) { mutableStateOf(false) }
+            val currentOnSceneReady by rememberUpdatedState(onSceneReady)
+            if (!sceneHasPixels && !probeFailed) {
+                DisposableEffect(asset, surfaceMirrorer) {
+                    val reader = runCatching {
+                        ImageReader.newInstance(64, 64, PixelFormat.RGBA_8888, 2)
+                    }.onFailure { error ->
+                        Log.w("FinikPet", "Unable to inspect first 3D frame", error)
+                        probeFailed = true
+                    }.getOrNull()
+                    val surface = reader?.surface
+                    if (reader != null && surface != null) {
+                        reader.setOnImageAvailableListener({ source ->
+                            try {
+                                source.acquireLatestImage()?.use { image ->
+                                    if (!sceneHasPixels && image.hasVisiblePetPixels()) {
+                                        sceneHasPixels = true
+                                        currentOnSceneReady()
+                                    }
+                                }
+                            } catch (error: Exception) {
+                                Log.w("FinikPet", "Unable to inspect 3D frame", error)
+                                probeFailed = true
+                            }
+                        }, Handler(Looper.getMainLooper()))
+                        // A tiny second render is active only until the model becomes visible.
+                        surfaceMirrorer.startMirroring(surface, width = 64, height = 64)
+                    }
+                    onDispose {
+                        reader?.setOnImageAvailableListener(null, null)
+                        if (surface != null) surfaceMirrorer.stopMirroring(surface)
+                        reader?.close()
+                    }
+                }
+            }
             val height = (asset.instance.model.boundingBox.halfExtent[1] * 2f).coerceAtLeast(.01f)
             val modelScale = (1.70f + stageIndex.coerceIn(0, 4) * .075f) / height
             SceneView(
                 modifier = Modifier.fillMaxSize(),
                 engine = engine,
                 modelLoader = modelLoader,
+                materialLoader = materialLoader,
+                environmentLoader = environmentLoader,
                 // Embedded surfaces respect Compose clipping, scrolling and transparent cards.
                 surfaceType = SurfaceType.TextureSurface,
                 isOpaque = false,
                 cameraNode = cameraNode,
                 cameraManipulator = cameraManipulator,
+                // TextureView must receive the complete gesture. Let its DOWN disable the
+                // surrounding Compose scroll until UP/CANCEL; returning false keeps SceneView's
+                // own orbit and pinch detectors in charge of the same MotionEvent stream.
+                onTouchEvent = { event, _ ->
+                    val active = when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> true
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> false
+                        else -> isInteracting
+                    }
+                    if (active != isInteracting) {
+                        isInteracting = active
+                        currentOnInteractionChange(active)
+                    }
+                    false
+                },
                 autoCenterContent = false,
                 frameRatePolicy = FrameRatePolicy.OnDemand(maxFps = 30),
+                surfaceMirrorer = surfaceMirrorer,
                 onFrame = { frameTimeNanos ->
                     controller.onFrame(frameTimeNanos)
-                    if (!firstFrameRendered) firstFrameRendered = true
+                    if (!firstFrameRendered) {
+                        firstFrameRendered = true
+                    }
                 },
             ) {
                 ModelNode(
@@ -148,6 +233,7 @@ private fun PetSceneSession(
             }
         } else {
             if (loaded.failed || frameFailed) {
+                SideEffect(onSceneFailure)
                 Surface(
                     modifier = Modifier.align(Alignment.BottomCenter),
                     shape = MaterialTheme.shapes.small,
@@ -163,6 +249,24 @@ private fun PetSceneSession(
             }
         }
     }
+}
+
+/** The mirror is black until the owl contributes pixels to the rendered scene. */
+private fun Image.hasVisiblePetPixels(): Boolean {
+    val plane = planes.firstOrNull() ?: return false
+    val bytes = plane.buffer
+    var visible = 0
+    for (y in 8 until height - 8 step 2) {
+        for (x in 8 until width - 8 step 2) {
+            val index = y * plane.rowStride + x * plane.pixelStride
+            if (index + 2 >= bytes.limit()) continue
+            val red = bytes.get(index).toInt() and 0xff
+            val green = bytes.get(index + 1).toInt() and 0xff
+            val blue = bytes.get(index + 2).toInt() and 0xff
+            if (maxOf(red, green, blue) > 24 && ++visible >= 8) return true
+        }
+    }
+    return false
 }
 
 @Composable

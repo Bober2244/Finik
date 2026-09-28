@@ -14,11 +14,11 @@ data class WeekPlan(
     val freeCoins: Int,
     val weeklyIncome: Int,
 ) {
-    val total: Int get() = entries.sumOf { it.planned }.coerceAtLeast(1)
+    val total: Int get() = entries.sumOf { it.planned }
 
     fun percentOf(category: SpendCategory): Int {
         val entry = entries.first { it.category == category }
-        return (entry.planned * 100f / total).toInt()
+        return if (weeklyIncome <= 0) 0 else (entry.planned * 100f / weeklyIncome).toInt()
     }
 
     fun entry(category: SpendCategory): PlanEntry = entries.first { it.category == category }

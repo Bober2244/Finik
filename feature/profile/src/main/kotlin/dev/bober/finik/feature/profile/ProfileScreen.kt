@@ -21,7 +21,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,12 +36,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.BackHeader
 import dev.bober.finik.core.designsystem.component.FinikCard
-import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
+import dev.bober.finik.core.designsystem.component.FinikIcons
+import dev.bober.finik.core.designsystem.component.OutlineButton
+import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.nunito
@@ -56,17 +62,17 @@ internal fun ProfileScreen(
     savedTotal: Int = SampleData.SAVED_TOTAL,
     weeksDone: Int = SampleData.WEEKS_DONE,
     income: Int = SampleData.WEEKLY_INCOME,
-    soundOn: Boolean = SampleData.SOUND_ON,
+    motionOn: Boolean = true,
     badgesDone: Int = SampleData.badges.count { it.isDone },
     badgesTotal: Int = SampleData.badges.size,
     onIncome: (Int) -> Unit = {},
-    onSound: (Boolean) -> Unit = {},
-    onReset: () -> Unit = {},
+    onMotion: (Boolean) -> Unit = {},
 ) {
-    var showReset by rememberSaveable { mutableStateOf(false) }
     var gateOpen by rememberSaveable { mutableStateOf(false) }
-    val gateA = 7
-    val gateB = 8
+    var gateA by rememberSaveable { mutableIntStateOf((6..12).random()) }
+    var gateB by rememberSaveable { mutableIntStateOf((5..11).random()) }
+    var correctFirst by rememberSaveable { mutableStateOf(listOf(true, false).random()) }
+    var gateError by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
     Column(
@@ -108,7 +114,7 @@ internal fun ProfileScreen(
         }
 
         SettingsRow(
-            icon = { Box(modifier = Modifier.size(30.dp).background(FinikColor.Orange, RoundedCornerShape(9.dp))) },
+            icon = { SettingsIcon(FinikIcons.Achievements, FinikColor.Orange) },
             title = "Достижения",
             onClick = onOpenBadges,
         ) {
@@ -120,56 +126,65 @@ internal fun ProfileScreen(
         }
 
         SettingsRow(
-            icon = { Box(modifier = Modifier.size(30.dp).background(FinikColor.Sound, CircleShape)) },
-            title = "Звуки и подсказки",
-            onClick = { onSound(!soundOn) },
+            icon = { SettingsIcon(FinikIcons.Sound, FinikColor.Sound, CircleShape) },
+            title = "Анимация питомца",
+            onClick = { onMotion(!motionOn) },
         ) {
-            Toggle(on = soundOn)
+            Toggle(on = motionOn)
         }
 
         SettingsRow(
-            icon = { Box(modifier = Modifier.size(30.dp).background(FinikColor.RedIcon, RoundedCornerShape(9.dp))) },
-            title = "Начать заново",
-            titleColor = FinikColor.RedReset,
-            borderColor = FinikColor.RedBorderReset,
-            onClick = { showReset = true },
-        )
-
-        SettingsRow(
-            icon = { Box(modifier = Modifier.size(30.dp).background(FinikColor.Green, RoundedCornerShape(9.dp))) },
+            icon = { SettingsIcon(FinikIcons.Adult, FinikColor.Green) },
             title = "Раздел для взрослых",
             onClick = { gateOpen = true },
-        ) {
-            Text(text = "7+8", style = nunito(12), color = FinikColor.Text50)
-        }
-    }
-
-    if (showReset) {
-        FinikConfirmSheet(
-            title = "Начать заново?",
-            body = "Профиль, монеты и прогресс сотрутся.",
-            confirmText = "Сбросить",
-            warning = true,
-            onConfirm = {
-                showReset = false
-                onReset()
-            },
-            onDismiss = { showReset = false },
         )
     }
     if (gateOpen) {
-        FinikConfirmSheet(
-            title = "Сколько будет $gateA + $gateB?",
-            body = "Барьер для взрослого. Нажми правильную сумму.",
-            confirmText = "${gateA + gateB}",
-            cancelText = "${gateA + gateB + 4}",
-            onConfirm = {
-                gateOpen = false
-                onOpenAdult()
-            },
-            onDismiss = { gateOpen = false },
-        )
+        Dialog(onDismissRequest = { gateOpen = false }) {
+            FinikCard(gap = 12.dp) {
+                Text(text = "Раздел для взрослых", style = unbounded(18), color = FinikColor.Ink)
+                Text(text = "Сколько будет $gateA + $gateB?", style = nunito(16), color = FinikColor.Ink)
+                if (gateError) Text(text = "Попробуй ещё раз.", style = nunito(13), color = FinikColor.RedReset)
+                val answer: (Boolean) -> Unit = { correct ->
+                    if (correct) {
+                        gateOpen = false
+                        gateError = false
+                        onOpenAdult()
+                    } else {
+                        gateA = (6..12).random()
+                        gateB = (5..11).random()
+                        correctFirst = !correctFirst
+                        gateError = true
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val first = if (correctFirst) gateA + gateB else gateA + gateB + 3
+                    val second = if (correctFirst) gateA + gateB + 3 else gateA + gateB
+                    PrimaryButton(text = first.toString(), onClick = { answer(correctFirst) }, modifier = Modifier.weight(1f))
+                    OutlineButton(text = second.toString(), onClick = { answer(!correctFirst) }, modifier = Modifier.weight(1f))
+                }
+            }
+        }
     }
+    }
+}
+
+@Composable
+internal fun SettingsIcon(
+    imageVector: ImageVector,
+    background: Color,
+    shape: Shape = RoundedCornerShape(9.dp),
+) {
+    Box(
+        modifier = Modifier.size(30.dp).background(background, shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onPrimary,
+        )
     }
 }
 
@@ -252,7 +267,12 @@ private fun Toggle(on: Boolean) {
             .padding(3.dp),
         contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
-        Box(modifier = Modifier.size(26.dp).background(FinikColor.Surface, CircleShape))
+        Box(
+            modifier = Modifier.size(26.dp).background(
+                if (on) MaterialTheme.colorScheme.onPrimary else FinikColor.Ink,
+                CircleShape,
+            ),
+        )
     }
 }
 

@@ -8,6 +8,7 @@ import dev.bober.finik.core.model.GameSnapshot
 import dev.bober.finik.core.model.HistoryTone
 import dev.bober.finik.core.model.HistoryWeek
 import dev.bober.finik.core.model.LogTone
+import dev.bober.finik.core.model.MoneyTransaction
 import dev.bober.finik.core.model.NeedLevel
 import dev.bober.finik.core.model.PetAppearance
 import dev.bober.finik.core.model.PetMood
@@ -22,6 +23,8 @@ import dev.bober.finik.core.model.SpendCategory
 import dev.bober.finik.core.model.SpendKind
 import dev.bober.finik.core.model.StreakDay
 import dev.bober.finik.core.model.TaskItem
+import dev.bober.finik.core.model.TaskTarget
+import dev.bober.finik.core.model.TransactionKind
 import dev.bober.finik.core.model.WeekLogEntry
 import dev.bober.finik.core.model.WeekPlan
 import dev.bober.finik.core.model.WeekReport
@@ -33,6 +36,8 @@ import kotlin.math.roundToInt
 
 /** Правила игровой экономики. Чистые функции — покрываются юнит-тестами. */
 object GameEngine {
+
+    private const val WEEKLY_INCOME_SOURCE = "Доход на неделю"
 
     val careActions: List<CareAction> = listOf(
         CareAction(label = "Напоить", category = SpendCategory.WATER, cost = 2),
@@ -81,13 +86,15 @@ object GameEngine {
             selectedGoalId = goals.first().id,
             history = emptyList(),
             weekLog = emptyList(),
-            badges = computeBadges(0, 0, 0, 0, 0, 0),
+            badges = computeBadges(0, 0, 0, 0, 0, 0, 0),
             report = null,
             demoMode = true,
             soundOn = true,
             earnedTotal = income,
             weeksDone = 0,
             lastOpenEpochDay = epochDay,
+            consecutiveOpenDays = 1,
+            transactions = listOf(MoneyTransaction(1, TransactionKind.INCOME, income, WEEKLY_INCOME_SOURCE)),
         ).withBadges()
     }
 
@@ -102,15 +109,16 @@ object GameEngine {
             return EngineResult(state, "Нельзя поставить меньше, чем уже потрачено.", warning = true)
         }
         val others = state.plan.entries.filter { it.category != category }.sumOf { it.planned }
-        if (others + planned > state.plan.weeklyIncome) {
-            return EngineResult(state, "Так не получится: всего ${state.plan.weeklyIncome} монет на неделю.", warning = true)
+        val budget = state.plan.total + state.plan.freeCoins
+        if (others + planned > budget) {
+            return EngineResult(state, "Так не получится: всего $budget монет на неделю.", warning = true)
         }
         val entries = state.plan.entries.map {
             if (it.category == category) it.copy(planned = planned) else it
         }
         val allocated = entries.sumOf { it.planned }
         val next = state.copy(
-            plan = state.plan.copy(entries = entries, freeCoins = state.plan.weeklyIncome - allocated),
+            plan = state.plan.copy(entries = entries, freeCoins = budget - allocated),
         )
         return EngineResult(next, "В «${category.label}» теперь $planned. Свободно ${next.plan.freeCoins}.")
     }
@@ -120,10 +128,12 @@ object GameEngine {
             return EngineResult(state, "План уже подтверждён.", warning = true)
         }
         val income = state.plan.weeklyIncome
+        val bonus = (state.plan.total + state.plan.freeCoins - income).coerceAtLeast(0)
         val food = (income * 0.40).roundToInt()
-        val play = (income * 0.30).roundToInt()
-        val water = (income * 0.10).roundToInt()
-        val save = income - food - play - water
+        val water = (income * 0.30).roundToInt()
+        val playBase = (income * 0.10).roundToInt()
+        val save = income - food - water - playBase
+        val play = playBase + bonus
         val entries = listOf(
             PlanEntry(SpendCategory.FOOD, food, 0),
             PlanEntry(SpendCategory.WATER, water, 0),
@@ -131,14 +141,16 @@ object GameEngine {
             PlanEntry(SpendCategory.SAVE, save, 0),
         )
         val next = state.copy(plan = state.plan.copy(entries = entries, freeCoins = 0))
-        return EngineResult(next, "Совет 40/30/10/20: еда $food, игры $play, вода $water, копилка $save.")
+        val bonusNote = if (bonus > 0) " Дополнительно заработано $bonus — в «Игры»." else ""
+        return EngineResult(next, "Совет 40/30/10/20: еда $food, вода $water, игры $playBase, копилка $save.$bonusNote")
     }
 
     fun resetPlan(state: GameSnapshot): EngineResult {
         if (state.planConfirmed) {
             return EngineResult(state, "После подтверждения план не сбрасывается.", warning = true)
         }
-        val next = state.copy(plan = emptyPlan(state.plan.weeklyIncome))
+        val budget = state.plan.total + state.plan.freeCoins
+        val next = state.copy(plan = emptyPlan(state.plan.weeklyIncome).copy(freeCoins = budget))
         return EngineResult(next, "План очищен. Разложи монеты заново.")
     }
 
@@ -181,6 +193,7 @@ object GameEngine {
             ?: return EngineResult(state, "Такого товара нет.", warning = true)
         val check = checkBuy(state, item)
         if (!check.allowed) return EngineResult(state, check.message, warning = true)
+        val actionReward = state.tasks.firstOrNull { it.target == TaskTarget.SHOP && !it.done }?.reward ?: 0
         val entries = state.plan.entries.map {
             if (it.category == item.category) it.copy(spent = it.spent + item.cost) else it
         }
@@ -189,12 +202,21 @@ object GameEngine {
             plan = state.plan.copy(entries = entries),
             needs = needs,
             saleBuys = state.saleBuys + if (item.isSale) 1 else 0,
+            transactions = state.transactions + MoneyTransaction(
+                week = state.weeksDone + 1,
+                kind = TransactionKind.PURCHASE,
+                amount = item.cost,
+                source = item.name,
+                category = item.category,
+            ),
         )
         if (item.isSale) {
             next = addXp(next, 4, "Покупка со скидкой")
         }
+        next = completeActionTask(next, TaskTarget.SHOP)
         next = refreshMood(next)
-        val msg = "Куплено «${item.name}» за ${item.cost}. ${item.effect} Баланс статьи «${item.category.label}»: ${next.plan.entry(item.category).left}."
+        val msg = "Куплено «${item.name}» за ${item.cost}. ${item.effect} Баланс статьи «${item.category.label}»: ${next.plan.entry(item.category).left}." +
+            if (actionReward > 0) " Задание выполнено: +$actionReward монет." else ""
         return EngineResult(next.withBadges(), msg)
     }
 
@@ -221,6 +243,13 @@ object GameEngine {
             caredWater = state.caredWater || category == SpendCategory.WATER,
             caredFood = state.caredFood || category == SpendCategory.FOOD,
             caredPlay = state.caredPlay || category == SpendCategory.PLAY,
+            transactions = state.transactions + MoneyTransaction(
+                week = state.weeksDone + 1,
+                kind = TransactionKind.CARE,
+                amount = action.cost,
+                source = action.label,
+                category = category,
+            ),
         )
         next = addXp(next, 1, action.label)
         next = refreshMood(next)
@@ -231,6 +260,7 @@ object GameEngine {
     }
 
     fun deposit(state: GameSnapshot, amount: Int): EngineResult {
+        if (!state.planConfirmed) return EngineResult(state, "Сначала подтверди план недели.", warning = true)
         if (amount <= 0) return EngineResult(state, "Нечего откладывать.", warning = true)
         val save = state.plan.entry(SpendCategory.SAVE)
         val take = amount.coerceAtMost(save.left.coerceAtLeast(0))
@@ -244,12 +274,26 @@ object GameEngine {
             if (it.id == state.selectedGoalId) it.copy(saved = it.saved + take) else it
         }
         val goal = goals.first { it.id == state.selectedGoalId }
-        var next = state.copy(plan = state.plan.copy(entries = entries), goals = goals)
+        val actionReward = state.tasks.firstOrNull { it.target == TaskTarget.GOAL && !it.done }?.reward ?: 0
+        var next = state.copy(
+            plan = state.plan.copy(entries = entries),
+            goals = goals,
+            transactions = state.transactions + MoneyTransaction(
+                week = state.weeksDone + 1,
+                kind = TransactionKind.DEPOSIT,
+                amount = take,
+                source = goal.title,
+                category = SpendCategory.SAVE,
+                goalId = goal.id,
+            ),
+        )
         next = addXp(next, 2, "Накопление")
+        next = completeActionTask(next, TaskTarget.GOAL)
         next = refreshMood(next)
-        val weeks = weeksToGoal(goal, next.plan.entry(SpendCategory.SAVE).planned)
-        val extra = if (weeks != null) " При таком темпе цель через $weeks нед." else ""
-        return EngineResult(next.withBadges(), "Отложено $take. В копилке ${goal.saved} из ${goal.target}.$extra")
+        val weeks = weeksToGoal(next, goal)
+        val extra = if (weeks != null) " По прошлым неделям цель через $weeks нед." else ""
+        return EngineResult(next.withBadges(), "Отложено $take. В копилке ${goal.saved} из ${goal.target}.$extra" +
+            if (actionReward > 0) " Задание выполнено: +$actionReward монет." else "")
     }
 
     fun withdraw(state: GameSnapshot, amount: Int): EngineResult {
@@ -262,16 +306,22 @@ object GameEngine {
         val entries = state.plan.entries.map {
             if (it.category == SpendCategory.PLAY) it.copy(planned = it.planned + take) else it
         }
-        val allocated = entries.sumOf { it.planned }
-        val free = (state.plan.weeklyIncome - allocated).coerceAtLeast(0)
         val next = refreshMood(
             state.copy(
                 goals = goals,
-                plan = state.plan.copy(entries = entries, freeCoins = if (state.planConfirmed) state.plan.freeCoins else free),
+                plan = state.plan.copy(entries = entries),
+                transactions = state.transactions + MoneyTransaction(
+                    week = state.weeksDone + 1,
+                    kind = TransactionKind.WITHDRAWAL,
+                    amount = take,
+                    source = goal.title,
+                    category = SpendCategory.PLAY,
+                    goalId = goal.id,
+                ),
             ),
         )
         val updated = next.selectedGoal
-        val weeks = weeksToGoal(updated, next.plan.entry(SpendCategory.SAVE).planned)
+        val weeks = weeksToGoal(next, updated)
         val delay = if (weeks != null) " Срок цели станет около $weeks нед." else ""
         return EngineResult(
             next.withBadges(),
@@ -282,8 +332,8 @@ object GameEngine {
 
     fun selectGoal(state: GameSnapshot, goalId: String): EngineResult {
         val goal = state.goals.firstOrNull { it.id == goalId } ?: return EngineResult(state, "Нет такой цели.", warning = true)
-        val weeks = weeksToGoal(goal, state.plan.entry(SpendCategory.SAVE).planned)
-        val extra = if (weeks != null) " Если откладывать как сейчас — примерно $weeks нед." else " Сначала заложи копилку в плане."
+        val weeks = weeksToGoal(state, goal)
+        val extra = if (weeks != null) " По прошлым неделям — примерно $weeks нед." else " Срок появится после накоплений за завершённую неделю."
         return EngineResult(
             state.copy(selectedGoalId = goalId),
             "Цель: ${goal.title}. Нужно ${goal.remaining} монет.$extra",
@@ -293,7 +343,8 @@ object GameEngine {
     fun completeTask(state: GameSnapshot, taskId: String, correct: Boolean, reward: Int): EngineResult {
         val task = state.tasks.firstOrNull { it.id == taskId } ?: return EngineResult(state, "Задание не найдено.", warning = true)
         if (task.done) return EngineResult(state, "Это задание уже выполнено.")
-        val coins = if (correct) reward else (reward / 2).coerceAtLeast(2)
+        if (!correct) return EngineResult(state, "Пока неверно. Прочитай объяснение и попробуй ещё раз.", warning = true)
+        val coins = reward.coerceAtLeast(0)
         val tasks = state.tasks.map { if (it.id == taskId) it.copy(done = true, subtitle = "выполнено") else it }
         val nextPlan = if (state.planConfirmed) {
             val entries = state.plan.entries.map {
@@ -307,33 +358,33 @@ object GameEngine {
             tasks = tasks,
             plan = nextPlan,
             earnedTotal = state.earnedTotal + coins,
+            transactions = if (coins > 0) state.transactions + MoneyTransaction(
+                week = state.weeksDone + 1,
+                kind = TransactionKind.INCOME,
+                amount = coins,
+                source = "Задание: ${task.title}",
+            ) else state.transactions,
         )
-        next = addXp(next, if (correct) 6 else 3, "Задание")
+        next = addXp(next, 6, "Задание")
         next = refreshMood(next)
         val where = if (state.planConfirmed) "в статью «Игры»" else "к свободным монетам"
-        val msg = if (correct) {
-            "Верно. +$coins $where. ${next.pet.name} это заметил."
-        } else {
-            "Можно лучше, но ты уже думаешь. +$coins $where. Прочитай разбор и попробуй иначе на следующей неделе."
-        }
-        return EngineResult(next.withBadges(), msg, warning = !correct)
+        return EngineResult(next.withBadges(), "Верно. +$coins $where. ${next.pet.name} это заметил.")
     }
 
     fun dailyOpen(state: GameSnapshot, epochDay: Long): EngineResult {
         if (!state.onboarded) return EngineResult(state, "")
         if (state.lastOpenEpochDay == epochDay) return EngineResult(state, "")
         val consecutive = if (state.lastOpenEpochDay == epochDay - 1) {
-            state.streak.count { it.done }.coerceAtMost(6) + 1
-        } else {
-            1
-        }
-        val maskDone = consecutive.coerceIn(1, 7)
+            state.consecutiveOpenDays.coerceAtLeast(0) + 1
+        } else 1
+        val maskDone = (consecutive - 1) % 7 + 1
         var next = state.copy(
             streak = streakFromMask((1 shl maskDone) - 1),
             lastOpenEpochDay = epochDay,
+            consecutiveOpenDays = consecutive,
             pet = state.pet.copy(dayOfWeek = maskDone.coerceIn(1, 7)),
         )
-        val bonus = if (maskDone == 7) 5 else 0
+        val bonus = if (consecutive % 7 == 0) 5 else 0
         if (bonus > 0) {
             next = next.copy(
                 plan = if (next.planConfirmed) {
@@ -346,6 +397,12 @@ object GameEngine {
                     next.plan.copy(freeCoins = next.plan.freeCoins + bonus)
                 },
                 earnedTotal = next.earnedTotal + bonus,
+                transactions = next.transactions + MoneyTransaction(
+                    week = next.weeksDone + 1,
+                    kind = TransactionKind.INCOME,
+                    amount = bonus,
+                    source = "Награда за семь дней",
+                ),
             )
             return EngineResult(next, "Семь дней подряд! +$bonus монет за привычку заходить.")
         }
@@ -354,37 +411,68 @@ object GameEngine {
 
     fun setSound(state: GameSnapshot, on: Boolean) = state.copy(soundOn = on)
 
+    fun setMotion(state: GameSnapshot, on: Boolean) = state.copy(motionOn = on)
+
     fun setDemo(state: GameSnapshot, on: Boolean) = state.copy(demoMode = on)
 
     fun setIncome(state: GameSnapshot, income: Int): EngineResult {
         if (state.planConfirmed) {
-            return EngineResult(state, "Доход сменится со следующей недели.", warning = true)
+            return EngineResult(state, "Сначала заверши текущий период. Затем можно изменить доход в профиле.", warning = true)
         }
-        val next = state.copy(plan = emptyPlan(income).let { empty ->
-            empty.copy(weeklyIncome = income, freeCoins = income)
-        })
-        return EngineResult(next.copy(plan = next.plan.copy(weeklyIncome = income, freeCoins = income)), "Теперь $income монет в неделю. Разложи план заново.")
+        if (income <= 0) return EngineResult(state, "Доход должен быть больше нуля.", warning = true)
+        val extraIncome = (state.plan.total + state.plan.freeCoins - state.plan.weeklyIncome).coerceAtLeast(0)
+        val currentWeek = state.weeksDone + 1
+        val oldBase = state.transactions.indexOfFirst {
+            it.week == currentWeek && it.kind == TransactionKind.INCOME && it.source == WEEKLY_INCOME_SOURCE
+        }
+        val baseIncome = MoneyTransaction(currentWeek, TransactionKind.INCOME, income, WEEKLY_INCOME_SOURCE)
+        val transactions = state.transactions.toMutableList().apply {
+            if (oldBase >= 0) this[oldBase] = baseIncome else add(baseIncome)
+        }
+        val next = state.copy(
+            plan = emptyPlan(income).copy(freeCoins = income + extraIncome),
+            earnedTotal = (state.earnedTotal + income - state.plan.weeklyIncome).coerceAtLeast(0),
+            transactions = transactions,
+        )
+        return EngineResult(next, "Теперь $income монет в неделю. Разложи план заново.")
     }
 
     fun closeWeek(state: GameSnapshot): EngineResult {
         if (!state.planConfirmed) {
             return EngineResult(state, "Сначала подтверди план, потом можно закрыть неделю.", warning = true)
         }
-        val rows = state.plan.entries.map { ReportRow(it.category, it.planned, it.spent) }
+        val currentWeek = state.weeksDone + 1
+        val weekTransactions = state.transactions.filter { it.week == currentWeek }
         val spent = state.plan.entries.filter { it.category != SpendCategory.SAVE }.sumOf { it.spent }
-        val savedNow = state.plan.entry(SpendCategory.SAVE).spent
+        val withdrawn = weekTransactions.filter { it.kind == TransactionKind.WITHDRAWAL }.sumOf { it.amount }
+        val savedNow = state.plan.entry(SpendCategory.SAVE).spent - withdrawn
+        val rows = state.plan.entries.map {
+            ReportRow(it.category, it.planned, if (it.category == SpendCategory.SAVE) savedNow else it.spent)
+        }
         val over = rows.filter { it.category != SpendCategory.SAVE && it.isOver }
-        val needsOk = state.needs.all { it.percent >= 50 } || (state.caredFood && state.caredWater)
+        val foodProvided = state.caredFood || weekTransactions.any {
+            it.kind == TransactionKind.PURCHASE && it.category == SpendCategory.FOOD
+        }
+        val waterProvided = state.caredWater || weekTransactions.any {
+            it.kind == TransactionKind.PURCHASE && it.category == SpendCategory.WATER
+        }
+        val needsOk = foodProvided && waterProvided && state.needs
+            .filter { it.category == SpendCategory.FOOD || it.category == SpendCategory.WATER }
+            .all { it.percent >= 50 }
+        val acted = spent > 0 || savedNow > 0
+        val anyMoneyDecision = acted || withdrawn > 0
         var xpGain = 0
         val log = mutableListOf<WeekLogEntry>()
         if (savedNow > 0) {
             xpGain += 10
             log += WeekLogEntry("Отложено в копилку", "+$savedNow", LogTone.GOOD, true)
+        } else if (withdrawn > 0) {
+            log += WeekLogEntry("Снято из копилки", "−$withdrawn", LogTone.NEUTRAL, true)
         }
-        if (over.isEmpty()) {
+        if (acted && over.isEmpty()) {
             xpGain += 10
             log += WeekLogEntry("План без перерасхода", "+10 опыта", LogTone.GOOD, false)
-        } else {
+        } else if (over.isNotEmpty()) {
             log += WeekLogEntry("Перерасход: ${over.joinToString { it.category.label }}", "−2", LogTone.BAD, true)
         }
         if (needsOk) {
@@ -393,18 +481,23 @@ object GameEngine {
         } else {
             log += WeekLogEntry("Нужное закрыто не полностью", "Питомец немного устал", LogTone.BAD, false)
         }
-        val savePercent = state.plan.percentOf(SpendCategory.SAVE)
-        if (savePercent >= 20) xpGain += 6
+        val savedAtLeast20 = state.plan.weeklyIncome > 0 && savedNow.toLong() * 5 >= state.plan.weeklyIncome
+        if (savedAtLeast20) xpGain += 6
+        if (!anyMoneyDecision) log += WeekLogEntry("Не было покупок и накоплений", "0 опыта за итоги", LogTone.NEUTRAL, false)
         val note = when {
             over.isNotEmpty() -> "План чуть поехал. На следующей неделе урежь желаемое и верни копилку. Прогресс не сгорел."
+            !anyMoneyDecision -> "За неделю не было покупок и накоплений. Итоги не добавили опыта; попробуй применить план в следующей."
+            savedNow < 0 -> "Из копилки снято больше, чем отложено. Цель стала дальше."
+            !acted -> "Из копилки сняты монеты. Цель стала дальше."
             savedNow == 0 -> "Цель не двигалась. Попробуй сразу заложить 20% в копилку."
-            else -> "Неделя сложилась: нужное закрыто, копилка выросла. Питомец подрос."
+            needsOk -> "Неделя сложилась: нужное закрыто, копилка выросла. Питомец подрос."
+            else -> "Копилка выросла. На следующей неделе не забудь про еду и воду."
         }
-        val summary = "План ${state.plan.weeklyIncome} · потрачено $spent · отложено $savedNow"
-        val report = WeekReport(week = state.pet.dayOfWeek.coerceAtLeast(state.weeksDone + 1).let { state.weeksDone + 1 }, rows = rows, summary = summary, note = note)
+        val summary = "План ${state.plan.weeklyIncome} · потрачено $spent · изменение копилки $savedNow"
+        val report = WeekReport(week = currentWeek, rows = rows, summary = summary, note = note)
         val savedValue = savedNow
         val tone = when {
-            over.isNotEmpty() -> HistoryTone.BAD
+            over.isNotEmpty() || savedValue < 0 -> HistoryTone.BAD
             savedValue >= 12 -> HistoryTone.HIGH
             savedValue >= 8 -> HistoryTone.MID
             else -> HistoryTone.LOW
@@ -428,21 +521,25 @@ object GameEngine {
             weekLog = log,
             report = report,
             weeksDone = state.weeksDone + 1,
-            weeksOnTrack = if (over.isEmpty()) state.weeksOnTrack + 1 else 0,
+            weeksOnTrack = if (acted && over.isEmpty()) state.weeksOnTrack + 1 else 0,
+            qualifiedSavingsWeeks = state.qualifiedSavingsWeeks + if (savedAtLeast20) 1 else 0,
             caredWater = false,
             caredFood = false,
             caredPlay = false,
             pet = next.pet.copy(dayOfWeek = 1, moodNote = note),
-            earnedTotal = next.earnedTotal + next.plan.weeklyIncome,
+            earnedTotal = state.earnedTotal + state.plan.weeklyIncome,
+            transactions = state.transactions + MoneyTransaction(
+                week = currentWeek + 1,
+                kind = TransactionKind.INCOME,
+                amount = state.plan.weeklyIncome,
+                source = WEEKLY_INCOME_SOURCE,
+            ),
         )
-        next = next.copy(plan = emptyPlan(state.plan.weeklyIncome), earnedTotal = state.earnedTotal + xpGain + state.plan.weeklyIncome)
-        // restore weekly income as free coins after close
-        next = next.copy(
-            plan = emptyPlan(state.plan.weeklyIncome),
-            planConfirmed = false,
-        )
+        if (anyMoneyDecision) next = completeActionTask(next, TaskTarget.PLAN)
         next = refreshMood(next).withBadges()
-        return EngineResult(next, "Неделя ${report.week} закрыта. $note", reportReady = true)
+        val actionReward = if (anyMoneyDecision) state.tasks.firstOrNull { it.target == TaskTarget.PLAN && !it.done }?.reward ?: 0 else 0
+        return EngineResult(next, "Неделя ${report.week} закрыта. $note" +
+            if (actionReward > 0) " Задание выполнено: +$actionReward монет." else "", reportReady = true)
     }
 
     fun repeatLastPlan(state: GameSnapshot, previous: WeekReport?): EngineResult {
@@ -463,6 +560,7 @@ object GameEngine {
     }
 
     fun parentBonus(state: GameSnapshot, amount: Int = 10): EngineResult {
+        if (amount <= 0) return EngineResult(state, "Сумма должна быть больше нуля.", warning = true)
         val next = if (state.planConfirmed) {
             state.copy(
                 plan = state.plan.copy(
@@ -471,11 +569,23 @@ object GameEngine {
                     },
                 ),
                 earnedTotal = state.earnedTotal + amount,
+                transactions = state.transactions + MoneyTransaction(
+                    week = state.weeksDone + 1,
+                    kind = TransactionKind.INCOME,
+                    amount = amount,
+                    source = "Помощь взрослого",
+                ),
             )
         } else {
             state.copy(
                 plan = state.plan.copy(freeCoins = state.plan.freeCoins + amount),
                 earnedTotal = state.earnedTotal + amount,
+                transactions = state.transactions + MoneyTransaction(
+                    week = state.weeksDone + 1,
+                    kind = TransactionKind.INCOME,
+                    amount = amount,
+                    source = "Помощь взрослого",
+                ),
             )
         }
         return EngineResult(next, "Взрослый добавил $amount монет. Это поддержка, а не оценка.")
@@ -483,10 +593,60 @@ object GameEngine {
 
     fun decorate(state: GameSnapshot): GameSnapshot = refreshMood(state).withBadges()
 
+    private fun completeActionTask(state: GameSnapshot, target: TaskTarget): GameSnapshot {
+        val task = state.tasks.firstOrNull { it.target == target && !it.done } ?: return state
+        val reward = task.reward.coerceAtLeast(0)
+        val plan = if (state.planConfirmed) {
+            state.plan.copy(entries = state.plan.entries.map {
+                if (it.category == SpendCategory.PLAY) it.copy(planned = it.planned + reward) else it
+            })
+        } else state.plan.copy(freeCoins = state.plan.freeCoins + reward)
+        return state.copy(
+            tasks = state.tasks.map { if (it.id == task.id) it.copy(done = true, subtitle = "выполнено") else it },
+            plan = plan,
+            earnedTotal = state.earnedTotal + reward,
+            transactions = state.transactions + MoneyTransaction(
+                week = state.weeksDone + 1,
+                kind = TransactionKind.INCOME,
+                amount = reward,
+                source = "Задание: ${task.title}",
+            ),
+        )
+    }
+
     fun weeksToGoal(goal: SavingsGoal, weeklySave: Int): Int? {
         if (goal.saved >= goal.target) return 0
         if (weeklySave <= 0) return null
         return ceil((goal.target - goal.saved) / weeklySave.toFloat()).toInt()
+    }
+
+    /** Average net contributions across known completed periods, including periods with no savings. */
+    fun averageActualWeeklyContribution(state: GameSnapshot, goalId: String): Double? {
+        if (state.weeksDone <= 0) return null
+        val values = (1..state.weeksDone).mapNotNull { week ->
+            val entries = state.transactions.filter { it.week == week }
+            val hasCompleteLedger = entries.any {
+                it.kind == TransactionKind.INCOME && it.source == WEEKLY_INCOME_SOURCE
+            }
+            if (hasCompleteLedger) {
+                entries.sumOf {
+                    when {
+                        it.goalId != goalId -> 0
+                        it.kind == TransactionKind.DEPOSIT -> it.amount
+                        it.kind == TransactionKind.WITHDRAWAL -> -it.amount
+                        else -> 0
+                    }
+                }
+            } else null // Old history has no goal ID; guessing would give a false forecast.
+        }
+        if (values.isEmpty()) return null
+        return values.average().takeIf { it > 0 }
+    }
+
+    fun weeksToGoal(state: GameSnapshot, goal: SavingsGoal): Int? {
+        if (goal.remaining == 0) return 0
+        val average = averageActualWeeklyContribution(state, goal.id) ?: return null
+        return ceil(goal.remaining / average).toInt()
     }
 
     private fun emptyPlan(income: Int) = WeekPlan(
@@ -563,13 +723,14 @@ object GameEngine {
     private fun computeBadges(
         weeksOnTrack: Int,
         savePercent: Int,
+        qualifiedSavingsWeeks: Int,
         saleBuys: Int,
         goalPercent: Int,
         lastWeekClean: Int,
         stageIndex: Int,
     ): List<Badge> = listOf(
         Badge("План выполнен", "Уложиться в план 4 недели подряд", (weeksOnTrack * 100 / 4).coerceIn(0, 100)),
-        Badge("Двадцать процентов", "Держать копилку ≥20%", if (savePercent >= 20) 100 else (savePercent * 5).coerceIn(0, 99)),
+        Badge("Двадцать процентов", "Отложить ≥20% дохода за неделю", if (qualifiedSavingsWeeks > 0) 100 else (savePercent * 5).coerceIn(0, 99)),
         Badge("Охотник за скидками", "10 покупок со скидкой", (saleBuys * 10).coerceIn(0, 100)),
         Badge("Полпути", "Половина цели собрана", goalPercent.coerceIn(0, 100)),
         Badge("Без долгов", "Неделя без перерасхода", lastWeekClean),
@@ -578,11 +739,15 @@ object GameEngine {
 
     private fun GameSnapshot.withBadges(): GameSnapshot {
         val savePercent = plan.percentOf(SpendCategory.SAVE)
-        val lastClean = if (plan.entries.none { it.category != SpendCategory.SAVE && it.spent > it.planned && it.planned > 0 }) 100 else 0
+        val previousReport = report
+        val lastClean = if (previousReport?.rows?.any { it.actual > 0 } == true &&
+            previousReport.rows.none { it.category != SpendCategory.SAVE && it.isOver }
+        ) 100 else 0
         return copy(
             badges = computeBadges(
                 weeksOnTrack = weeksOnTrack,
                 savePercent = savePercent,
+                qualifiedSavingsWeeks = qualifiedSavingsWeeks,
                 saleBuys = saleBuys,
                 goalPercent = selectedGoal.percent,
                 lastWeekClean = lastClean,

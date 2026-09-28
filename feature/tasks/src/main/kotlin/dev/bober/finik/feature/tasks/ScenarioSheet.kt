@@ -1,6 +1,5 @@
 package dev.bober.finik.feature.tasks
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,8 +24,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.component.SquareIconButton
 import dev.bober.finik.core.designsystem.theme.FinikColor
@@ -40,8 +47,7 @@ internal fun ScenarioSheet(
     modifier: Modifier = Modifier,
 ) {
     var picked by rememberSaveable { mutableIntStateOf(-1) }
-    BackHandler(onBack = onClose)
-
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -65,6 +71,7 @@ internal fun ScenarioSheet(
                     indication = null,
                     onClick = {},
                 )
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
@@ -74,7 +81,7 @@ internal fun ScenarioSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = "Ситуация", style = nunito(12), color = FinikColor.Text50)
-                SquareIconButton(onClick = onClose, size = 40.dp, background = FinikColor.Chip) {
+                SquareIconButton(onClick = onClose, size = 48.dp, background = FinikColor.Chip, contentDescription = "Закрыть ситуацию") {
                     Text(text = "×", style = nunito(18), color = FinikColor.Text44)
                 }
             }
@@ -103,6 +110,7 @@ internal fun ScenarioSheet(
                             shape,
                         )
                         .clickable(enabled = picked < 0) { picked = index }
+                        .semantics { this.selected = selected }
                         .padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -115,10 +123,13 @@ internal fun ScenarioSheet(
                     text = choice.explanation,
                     style = nunito(13, FontWeight.SemiBold, lineHeight = 1.45),
                     color = if (choice.correct) FinikColor.GreenInkQuiz else FinikColor.Red,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
                 PrimaryButton(
-                    text = "Дальше",
-                    onClick = { onComplete(choice.correct) },
+                    text = if (choice.correct) "Завершить задание" else "Попробовать ещё",
+                    onClick = {
+                        if (choice.correct) onComplete(true) else picked = -1
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     height = 48.dp,
                     radius = 12.dp,
@@ -131,5 +142,6 @@ internal fun ScenarioSheet(
                 )
             }
         }
+    }
     }
 }

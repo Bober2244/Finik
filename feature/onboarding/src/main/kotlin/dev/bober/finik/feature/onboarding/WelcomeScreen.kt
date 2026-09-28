@@ -48,7 +48,7 @@ internal fun WelcomeScreen(
         modifier = modifier
             .fillMaxSize()
             .background(FinikColor.Background)
-            .radialGlow()
+            .radialGlow(FinikColor.GreenGlow, FinikColor.Background)
             .systemBarsPadding()
             .padding(start = 24.dp, end = 24.dp, top = 36.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(30.dp, Alignment.CenterVertically),
@@ -117,10 +117,10 @@ private fun RowScope.StatTile(value: String, label: String, valueColor: Color) {
 }
 
 /** `radial-gradient(120% 60% at 50% 6%, зелёное свечение 0%, фон 68%)`. */
-private fun Modifier.radialGlow(): Modifier = drawBehind {
+private fun Modifier.radialGlow(glow: Color, background: Color): Modifier = drawBehind {
     drawRect(
         brush = Brush.radialGradient(
-            colorStops = arrayOf(0f to FinikColor.GreenGlow, 0.68f to FinikColor.Background),
+            colorStops = arrayOf(0f to glow, 0.68f to background),
             center = Offset(size.width / 2f, size.height * 0.06f),
             radius = size.height * 0.6f,
         ),

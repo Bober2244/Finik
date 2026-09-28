@@ -30,6 +30,7 @@ fun NavGraphBuilder.growthScreen(
             onOpenReport = onOpenReport,
             pet = state.pet,
             weekLog = state.weekLog,
+            hasReport = state.report != null,
         )
     }
 }

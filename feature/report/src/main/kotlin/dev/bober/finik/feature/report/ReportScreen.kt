@@ -105,6 +105,23 @@ internal fun ReportScreen(
     }
 }
 
+@Composable
+internal fun EmptyReportScreen(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().background(FinikColor.Background).systemBarsPadding()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        SquareIconButton(onClick = onBack, size = 48.dp) {
+            Text(text = "Назад", style = nunito(14), color = FinikColor.Ink)
+        }
+        FinikCard {
+            Text(text = "Отчёта пока нет", style = unbounded(19), color = FinikColor.Ink)
+            Text(text = "Подтверди план и закрой первый период — здесь появятся настоящие план и факт.", style = nunito(14), color = FinikColor.Text46)
+        }
+    }
+}
+
 /** Полоска «план против факта»: перерасход — бледная заливка на всю ширину и красный маркер справа. */
 @Composable
 private fun ReportBar(row: ReportRow) {

@@ -2,6 +2,7 @@ package dev.bober.finik.core.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
@@ -23,6 +24,12 @@ class SessionStore(context: Context) {
         dataStore.edit { it[DEVICE_ID] = value }
     }
 
+    suspend fun onlineExtrasEnabled(): Boolean = dataStore.data.first()[ONLINE_EXTRAS] ?: false
+
+    suspend fun saveOnlineExtrasEnabled(enabled: Boolean) {
+        dataStore.edit { it[ONLINE_EXTRAS] = enabled }
+    }
+
     suspend fun snapshotJson(): String? = dataStore.data.first()[SNAPSHOT]?.takeIf { it.isNotBlank() }
 
     suspend fun saveSnapshotJson(value: String) {
@@ -33,9 +40,19 @@ class SessionStore(context: Context) {
         dataStore.edit { it.remove(SNAPSHOT) }
     }
 
+    suspend fun clearAll() {
+        dataStore.edit {
+            it.remove(SNAPSHOT)
+            it.remove(TOKEN)
+            it.remove(DEVICE_ID)
+            it.remove(ONLINE_EXTRAS)
+        }
+    }
+
     companion object {
         private val TOKEN = stringPreferencesKey("token")
         private val DEVICE_ID = stringPreferencesKey("device_id")
+        private val ONLINE_EXTRAS = booleanPreferencesKey("online_extras")
         private val SNAPSHOT = stringPreferencesKey("snapshot_json")
     }
 }

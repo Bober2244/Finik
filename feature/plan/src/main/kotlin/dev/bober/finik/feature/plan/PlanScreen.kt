@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -74,23 +78,23 @@ internal fun PlanScreen(
                 modifier = Modifier.weight(1f),
             )
             OutlineButton(
-                text = "↺",
+                text = "Сброс",
                 onClick = onReset,
-                modifier = Modifier.width(52.dp),
-                textStyle = nunito(16),
+                modifier = Modifier.width(80.dp),
+                textStyle = nunito(14),
             )
         }
         if (!planConfirmed) {
             PrimaryButton(
-                text = if (plan.freeCoins == 0) "Подтвердить план" else "Разложи все ${plan.freeCoins} свободно",
+                text = if (plan.freeCoins == 0) "Подтвердить план" else "Распредели ещё ${plan.freeCoins} монет",
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = plan.freeCoins == 0,
             )
         } else {
             Text(
-                text = "План подтверждён. Сравниваем с фактом: траты идут из статей.",
-                style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4),
+                text = "План подтверждён. Покупки и уход уменьшают остаток нужной статьи.",
+                style = nunito(14, FontWeight.SemiBold, lineHeight = 1.4),
                 color = FinikColor.Text46,
             )
         }
@@ -101,7 +105,7 @@ internal fun PlanScreen(
 private fun UnallocatedCard(plan: WeekPlan) {
     val savePercent = plan.percentOf(SpendCategory.SAVE)
     val hint = when {
-        plan.freeCoins > 0 -> "Разложи остаток: сначала еда и вода, потом игры, в копилку — не меньше 20%."
+        plan.freeCoins > 0 -> "Совет: еда 40%, вода 30%, игры 10%, копилка 20%."
         savePercent < 20 -> "В копилке меньше 20%. До цели так идти долго."
         else -> "План собран. Теперь траты идут только из статей."
     }
@@ -130,7 +134,7 @@ private fun UnallocatedCard(plan: WeekPlan) {
                 Text(text = "в копилку $savePercent%", style = nunito(12.5), color = FinikColor.CoinInk44)
             }
         }
-        Text(text = hint, style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.45), color = FinikColor.CoinInk42)
+        Text(text = hint, style = nunito(14, FontWeight.SemiBold, lineHeight = 1.45), color = FinikColor.CoinInk42)
     }
 }
 
@@ -143,7 +147,7 @@ private fun PlanEntryCard(
 ) {
     FinikCard(
         radius = 16.dp,
-        borderColor = if (entry.left <= 0) FinikColor.RedBorderPlan else FinikColor.Border,
+        borderColor = if (entry.spent > entry.planned) FinikColor.RedBorderPlan else FinikColor.Border,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
         gap = 9.dp,
     ) {
@@ -151,10 +155,10 @@ private fun PlanEntryCard(
             Box(modifier = Modifier.size(14.dp).background(entry.category.color, RoundedCornerShape(5.dp)))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(text = entry.category.label, style = nunito(14.5), color = FinikColor.Ink)
-                Text(text = entry.category.note, style = nunito(11.5, FontWeight.SemiBold), color = FinikColor.Text50)
+                Text(text = entry.category.note, style = nunito(13, FontWeight.SemiBold), color = FinikColor.Text50)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                StepperButton(text = "−", onClick = { onAdjust(-1) }, enabled = !confirmed)
+                StepperButton(text = "−", label = "Уменьшить бюджет: ${entry.category.label}", onClick = { onAdjust(-1) }, enabled = !confirmed)
                 Text(
                     text = entry.planned.toString(),
                     style = nunito(18, FontWeight.ExtraBold),
@@ -162,38 +166,40 @@ private fun PlanEntryCard(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.width(34.dp),
                 )
-                StepperButton(text = "+", onClick = { onAdjust(1) }, enabled = !confirmed)
+                StepperButton(text = "+", label = "Увеличить бюджет: ${entry.category.label}", onClick = { onAdjust(1) }, enabled = !confirmed)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             FinikProgressBar(
-                progress = percent / 100f,
+                progress = if (entry.planned > 0) (entry.spent.toFloat() / entry.planned).coerceIn(0f, 1f) else 0f,
                 color = entry.category.color,
                 track = FinikColor.IconButton,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "$percent% · ост. ${entry.left}",
-                style = nunito(11.5),
+                text = "${entry.spent} из ${entry.planned}",
+                style = nunito(13),
                 color = FinikColor.Text50,
                 textAlign = TextAlign.End,
                 maxLines = 1,
                 modifier = Modifier.width(100.dp),
             )
         }
+        Text(text = "$percent% дохода · осталось ${entry.left.coerceAtLeast(0)} монет", style = nunito(13, FontWeight.SemiBold), color = FinikColor.Text46)
     }
 }
 
 @Composable
-private fun StepperButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
+private fun StepperButton(text: String, label: String, onClick: () -> Unit, enabled: Boolean = true) {
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(shape)
             .background(FinikColor.SurfaceMuted)
-            .border(1.dp, FinikColor.Border, shape)
-            .clickable(enabled = enabled, onClick = onClick),
+            .border(1.dp, FinikColor.BorderStrong, shape)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
         Text(text = text, style = nunito(20), color = if (enabled) FinikColor.Ink else FinikColor.Text58)

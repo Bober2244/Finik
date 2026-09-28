@@ -12,6 +12,30 @@ import androidx.navigation.NavBackStackEntry
 object FinikTransitions {
     private const val DURATION_MS = 280
 
+    // Nested screens cover the shell as one opaque page. Sliding them keeps the
+    // outgoing and incoming headers from showing through one another.
+    val nestedEnter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        slideIntoContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.Start,
+            animationSpec = tween(DURATION_MS),
+        )
+    }
+
+    val nestedExit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        ExitTransition.None
+    }
+
+    val nestedPopEnter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        EnterTransition.None
+    }
+
+    val nestedPopExit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        slideOutOfContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.End,
+            animationSpec = tween(DURATION_MS),
+        )
+    }
+
     val enter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
         fadeIn(animationSpec = tween(DURATION_MS)) +
             slideIntoContainer(

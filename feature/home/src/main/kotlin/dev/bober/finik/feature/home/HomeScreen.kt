@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -15,27 +16,35 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.FinikCard
+import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
+import dev.bober.finik.core.designsystem.component.FinikIcons
 import dev.bober.finik.core.designsystem.component.FinikProgressBar
 import dev.bober.finik.core.designsystem.component.GradientCard
 import dev.bober.finik.core.designsystem.component.LinkButton
 import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.component.SegmentedBar
-import dev.bober.finik.core.designsystem.component.ShapeDot
 import dev.bober.finik.core.designsystem.component.TitleRow
-import dev.bober.finik.core.designsystem.component.glyphShape
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.color
@@ -66,7 +75,6 @@ internal fun HomeScreen(
     care: List<CareAction> = SampleData.careActions,
     streak: List<StreakDay> = SampleData.streakDays,
     planConfirmed: Boolean = true,
-    demoMode: Boolean = true,
     goalTitle: String = SampleData.goal.title,
     goalSaved: Int = SampleData.goal.saved,
     goalTarget: Int = SampleData.goal.target,
@@ -78,15 +86,23 @@ internal fun HomeScreen(
     onOpenTasks: () -> Unit = {},
     onCloseWeek: () -> Unit = {},
 ) {
+    var confirmClose by rememberSaveable { mutableStateOf(false) }
+    var petInteractionActive by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(FinikColor.Background)
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState(), enabled = !petInteractionActive)
             .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        HeroCard(pet = pet, needs = needs, action = action, actionEventId = actionEventId)
+        HeroCard(
+            pet = pet,
+            needs = needs,
+            action = action,
+            actionEventId = actionEventId,
+            onPetInteractionChange = { petInteractionActive = it },
+        )
         CareRow(actions = care, plan = plan, planConfirmed = planConfirmed, onCare = onCare)
         SnapshotRow(
             saved = goalSaved,
@@ -98,10 +114,10 @@ internal fun HomeScreen(
         )
         PlanCard(plan = plan, onEdit = onOpenPlan)
         StreakCard(days = streak)
-        if (demoMode && planConfirmed) {
+        if (planConfirmed) {
             PrimaryButton(
-                text = "Закрыть неделю",
-                onClick = onCloseWeek,
+                text = "Завершить период и посмотреть отчёт",
+                onClick = { confirmClose = true },
                 modifier = Modifier.fillMaxWidth(),
             )
         } else if (!planConfirmed) {
@@ -114,57 +130,134 @@ internal fun HomeScreen(
             }
         }
     }
+    if (confirmClose) {
+        FinikConfirmSheet(
+            title = "Завершить период?",
+            body = "Мы сравним план с фактическими тратами и накоплениями. Начнётся новый период.",
+            confirmText = "Завершить",
+            onConfirm = {
+                confirmClose = false
+                onCloseWeek()
+            },
+            onDismiss = { confirmClose = false },
+        )
+    }
 }
 
 @Composable
-private fun HeroCard(pet: PetProfile, needs: List<NeedLevel>, action: PetAnimation, actionEventId: Long) {
+private fun HeroCard(
+    pet: PetProfile,
+    needs: List<NeedLevel>,
+    action: PetAnimation,
+    actionEventId: Long,
+    onPetInteractionChange: (Boolean) -> Unit,
+) {
     GradientCard(
         brush = Brush.verticalGradient(listOf(FinikColor.GreenHeroTop, FinikColor.SurfaceCream)),
+        modifier = Modifier.fillMaxWidth(),
         radius = 20.dp,
         gap = 0.dp,
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            PetFigure(
-                species = pet.species,
-                spec = PetFigureSpec.hero(pet.stageIndex),
-                mood = pet.mood,
-                appearance = pet.appearance,
-                action = action,
-                actionEventId = actionEventId,
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(9.dp),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = pet.name, style = unbounded(19, lineHeight = 1.1), color = FinikColor.Ink)
-                    Text(
-                        text = "${pet.stage.name} · ${pet.mood.label}",
-                        style = nunito(12.5),
-                        color = FinikColor.TextWarm44,
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val stacked = maxWidth < 290.dp || LocalDensity.current.fontScale > 1.35f
+            val narrow = maxWidth < 350.dp || LocalDensity.current.fontScale > 1.15f
+            if (stacked) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PetFigure(
+                        species = pet.species,
+                        spec = PetFigureSpec(140.dp, 155.dp, pet.stageIndex, live3d = true, portraitScale = .78f, portraitOffsetY = 20.dp),
+                        mood = pet.mood,
+                        appearance = pet.appearance,
+                        action = action,
+                        actionEventId = actionEventId,
+                        onInteractionChange = onPetInteractionChange,
                     )
+                    Text(
+                        text = pet.appearance.furColor.title,
+                        style = nunito(11, FontWeight.SemiBold),
+                        color = FinikColor.Text42,
+                    )
+                    HeroDetails(pet = pet, needs = needs, modifier = Modifier.fillMaxWidth())
                 }
-                needs.forEach { need ->
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text(text = need.category.label, style = nunito(11.5), color = FinikColor.Text45)
-                            Text(text = "${need.percent}%", style = nunito(11.5), color = FinikColor.Text45)
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(if (narrow) 8.dp else 14.dp)) {
+                    if (narrow) {
+                        Column(modifier = Modifier.width(110.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            PetFigure(
+                                species = pet.species,
+                                spec = PetFigureSpec(110.dp, 135.dp, pet.stageIndex, live3d = true, portraitScale = .78f, portraitOffsetY = 20.dp),
+                                mood = pet.mood,
+                                appearance = pet.appearance,
+                                action = action,
+                                actionEventId = actionEventId,
+                                onInteractionChange = onPetInteractionChange,
+                            )
+                            Text(
+                                text = pet.appearance.furColor.title,
+                                style = nunito(11, FontWeight.SemiBold),
+                                color = FinikColor.Text42,
+                            )
+                            if (pet.appearance.accessories.isNotEmpty()) {
+                                Text(
+                                    text = pet.appearance.accessories.sortedBy { it.ordinal }.joinToString { it.title },
+                                    style = nunito(10),
+                                    color = FinikColor.Text42,
+                                    maxLines = 2,
+                                )
+                            }
                         }
-                        FinikProgressBar(
-                            progress = need.percent / 100f,
-                            color = if (need.category == SpendCategory.FOOD) FinikColor.FoodBright else need.category.color,
-                            height = 9.dp,
+                    } else {
+                        PetFigure(
+                            species = pet.species,
+                            spec = PetFigureSpec.hero(pet.stageIndex).copy(portraitScale = .78f, portraitOffsetY = 20.dp),
+                            mood = pet.mood,
+                            appearance = pet.appearance,
+                            action = action,
+                            actionEventId = actionEventId,
+                            onInteractionChange = onPetInteractionChange,
                         )
                     }
+                    HeroDetails(pet = pet, needs = needs, modifier = Modifier.weight(1f))
                 }
-                Text(
-                    text = pet.moodNote,
-                    style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.4),
-                    color = FinikColor.Text42,
-                    modifier = Modifier.padding(top = 2.dp),
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroDetails(pet: PetProfile, needs: List<NeedLevel>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(text = pet.name, style = unbounded(19, lineHeight = 1.1), color = FinikColor.Ink)
+            Text(
+                text = "${pet.stage.name} · ${pet.mood.label}",
+                style = nunito(12.5),
+                color = FinikColor.TextWarm44,
+            )
+        }
+        needs.forEach { need ->
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = need.category.label, style = nunito(11.5), color = FinikColor.Text45)
+                    Text(text = "${need.percent}%", style = nunito(11.5), color = FinikColor.Text45)
+                }
+                FinikProgressBar(
+                    progress = need.percent / 100f,
+                    color = if (need.category == SpendCategory.FOOD) FinikColor.FoodBright else need.category.color,
+                    height = 9.dp,
                 )
             }
         }
+        Text(
+            text = pet.moodNote,
+            style = nunito(12.5, FontWeight.SemiBold, lineHeight = 1.4),
+            color = FinikColor.Text42,
+            modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 
@@ -204,7 +297,17 @@ private fun RowScope.CareButton(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
     ) {
-        ShapeDot(color = action.category.color, shape = action.category.glyphShape, size = 26.dp)
+        Icon(
+            imageVector = when (action.category) {
+                SpendCategory.FOOD -> FinikIcons.Food
+                SpendCategory.WATER -> FinikIcons.Water
+                SpendCategory.PLAY -> FinikIcons.Play
+                SpendCategory.SAVE -> FinikIcons.Goal
+            },
+            contentDescription = null,
+            modifier = Modifier.size(26.dp),
+            tint = action.category.color,
+        )
         Text(text = action.label, style = nunito(14), color = FinikColor.Ink)
         Text(
             text = "${action.cost} из $left · ${action.category.label}",

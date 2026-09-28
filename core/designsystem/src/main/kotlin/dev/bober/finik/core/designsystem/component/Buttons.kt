@@ -7,15 +7,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -33,15 +38,16 @@ fun PrimaryButton(
     radius: Dp = 16.dp,
     textStyle: TextStyle = nunito(17),
     containerColor: Color = FinikColor.Green,
-    contentColor: Color = Color.White,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary,
     enabled: Boolean = true,
 ) {
     Box(
         modifier = modifier
+            .heightIn(min = 48.dp)
             .height(height)
             .clip(RoundedCornerShape(radius))
             .background(if (enabled) containerColor else FinikColor.DisabledButton)
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -64,17 +70,19 @@ fun OutlineButton(
     textStyle: TextStyle = nunito(14),
     borderColor: Color = FinikColor.BorderStrong,
     contentColor: Color = FinikColor.Ink,
+    enabled: Boolean = true,
 ) {
     Box(
         modifier = modifier
+            .heightIn(min = 48.dp)
             .height(height)
             .clip(RoundedCornerShape(radius))
             .background(FinikColor.Surface)
             .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(radius))
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = text, style = textStyle, color = contentColor, textAlign = TextAlign.Center)
+        Text(text = text, style = textStyle, color = if (enabled) contentColor else FinikColor.Text56, textAlign = TextAlign.Center)
     }
 }
 
@@ -83,17 +91,20 @@ fun OutlineButton(
 fun SquareIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = 40.dp,
+    size: Dp = 48.dp,
     radius: Dp = 12.dp,
     background: Color = FinikColor.IconButton,
+    contentDescription: String? = null,
+    enabled: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     Box(
         modifier = modifier
-            .size(size)
+            .size(maxOf(size, 48.dp))
             .clip(RoundedCornerShape(radius))
             .background(background)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .then(if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier),
         contentAlignment = Alignment.Center,
         content = content,
     )
@@ -112,7 +123,7 @@ fun LinkButton(
         color = FinikColor.GreenLink,
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(4.dp),
     )
 }

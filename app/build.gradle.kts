@@ -1,7 +1,27 @@
+import org.gradle.api.GradleException
+
 plugins {
     alias(libs.plugins.finik.android.application)
     alias(libs.plugins.finik.android.application.compose)
     alias(libs.plugins.kotlin.serialization)
+}
+
+val releaseKeystorePath = providers.environmentVariable("FINIK_KEYSTORE_PATH").orNull
+val releaseKeystorePassword = providers.environmentVariable("FINIK_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("FINIK_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("FINIK_KEY_PASSWORD").orNull
+val signingValues = listOf(releaseKeystorePath, releaseKeystorePassword, releaseKeyAlias, releaseKeyPassword)
+if (signingValues.any { it != null } && signingValues.any { it.isNullOrBlank() }) {
+    throw GradleException("Set all four FINIK_KEYSTORE_* / FINIK_KEY_* variables for a signed release")
+}
+val hasReleaseSigning = signingValues.all { !it.isNullOrBlank() }
+val debugApiBaseUrl = providers.environmentVariable("FINIK_DEBUG_API_BASE_URL").orElse("").get()
+val releaseApiBaseUrl = providers.environmentVariable("FINIK_API_BASE_URL").orElse("").get()
+if (releaseApiBaseUrl.isNotBlank() && !releaseApiBaseUrl.startsWith("https://")) {
+    throw GradleException("FINIK_API_BASE_URL must use HTTPS in release builds")
+}
+if (listOf(debugApiBaseUrl, releaseApiBaseUrl).any { '"' in it || '\n' in it || '\r' in it }) {
+    throw GradleException("API base URL contains an unsupported character")
 }
 
 android {
@@ -13,16 +33,36 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
-        buildConfigField("String", "API_BASE_URL", "\"http://100.127.197.56:8000/\"")
     }
 
     buildFeatures {
         buildConfig = true
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("finikRelease") {
+                val keystore = file(requireNotNull(releaseKeystorePath))
+                if (!keystore.isFile) {
+                    throw GradleException("FINIK_KEYSTORE_PATH does not point to a file: $keystore")
+                }
+                storeFile = keystore
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
+        }
         release {
+            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("finikRelease")
+            }
             optimization {
                 enable = false
             }
@@ -36,6 +76,7 @@ dependencies {
     implementation(projects.core.navigation)
     implementation(projects.core.data)
     implementation(projects.core.network)
+    implementation(projects.core.pet)
 
     implementation(projects.feature.onboarding)
     implementation(projects.feature.home)

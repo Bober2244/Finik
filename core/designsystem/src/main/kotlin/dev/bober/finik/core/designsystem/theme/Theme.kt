@@ -1,30 +1,85 @@
 package dev.bober.finik.core.designsystem.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-private val FinikColorScheme = lightColorScheme(
-    primary = FinikColor.Green,
-    onPrimary = FinikColor.Surface,
-    primaryContainer = FinikColor.GreenCard,
-    onPrimaryContainer = FinikColor.GreenInk34,
-    secondary = FinikColor.Coin,
-    onSecondary = FinikColor.CoinInk,
-    background = FinikColor.Background,
-    onBackground = FinikColor.Ink,
-    surface = FinikColor.Surface,
-    onSurface = FinikColor.Ink,
-    surfaceVariant = FinikColor.Chip,
-    onSurfaceVariant = FinikColor.Text50,
-    outline = FinikColor.Border,
-    error = FinikColor.Red,
-    onError = FinikColor.Surface,
+private val lightFinikColorScheme = lightColorScheme(
+    primary = LightFinikPalette.Green,
+    onPrimary = LightFinikPalette.InkDeep,
+    primaryContainer = LightFinikPalette.GreenCard,
+    onPrimaryContainer = LightFinikPalette.GreenInk34,
+    secondary = LightFinikPalette.Coin,
+    onSecondary = LightFinikPalette.CoinInk,
+    secondaryContainer = LightFinikPalette.GreenPill,
+    onSecondaryContainer = LightFinikPalette.GreenInk36,
+    tertiary = LightFinikPalette.Play,
+    onTertiary = LightFinikPalette.InkDeep,
+    tertiaryContainer = LightFinikPalette.ChipTrait,
+    onTertiaryContainer = LightFinikPalette.Ink,
+    background = LightFinikPalette.Background,
+    onBackground = LightFinikPalette.Ink,
+    surface = LightFinikPalette.Surface,
+    onSurface = LightFinikPalette.Ink,
+    surfaceVariant = LightFinikPalette.Chip,
+    onSurfaceVariant = LightFinikPalette.Text50,
+    surfaceTint = LightFinikPalette.Green,
+    surfaceDim = LightFinikPalette.Background,
+    surfaceBright = LightFinikPalette.Surface,
+    surfaceContainerLowest = LightFinikPalette.Background,
+    surfaceContainerLow = LightFinikPalette.Surface,
+    surfaceContainer = LightFinikPalette.SurfaceMuted,
+    surfaceContainerHigh = LightFinikPalette.IconButton,
+    surfaceContainerHighest = LightFinikPalette.Chip,
+    outline = LightFinikPalette.Border,
+    outlineVariant = LightFinikPalette.BorderSoft,
+    error = LightFinikPalette.Red,
+    onError = LightFinikPalette.Surface,
+    errorContainer = LightFinikPalette.RedNoteBg,
+    onErrorContainer = LightFinikPalette.RedNoteInk,
+)
+
+private val darkFinikColorScheme = darkColorScheme(
+    primary = DarkFinikPalette.Green,
+    onPrimary = DarkFinikPalette.InkDeep,
+    primaryContainer = DarkFinikPalette.GreenCard,
+    onPrimaryContainer = DarkFinikPalette.GreenInk34,
+    secondary = DarkFinikPalette.Coin,
+    onSecondary = DarkFinikPalette.CoinInkStreak,
+    secondaryContainer = DarkFinikPalette.GreenPill,
+    onSecondaryContainer = DarkFinikPalette.GreenInk36,
+    tertiary = DarkFinikPalette.Play,
+    onTertiary = DarkFinikPalette.InkDeep,
+    tertiaryContainer = DarkFinikPalette.ChipTrait,
+    onTertiaryContainer = DarkFinikPalette.Ink,
+    background = DarkFinikPalette.Background,
+    onBackground = DarkFinikPalette.Ink,
+    surface = DarkFinikPalette.Surface,
+    onSurface = DarkFinikPalette.Ink,
+    surfaceVariant = DarkFinikPalette.Chip,
+    onSurfaceVariant = DarkFinikPalette.Text50,
+    surfaceTint = DarkFinikPalette.Green,
+    surfaceDim = DarkFinikPalette.Background,
+    surfaceBright = DarkFinikPalette.SurfaceMuted,
+    surfaceContainerLowest = DarkFinikPalette.Background,
+    surfaceContainerLow = DarkFinikPalette.Surface,
+    surfaceContainer = DarkFinikPalette.SurfaceMuted,
+    surfaceContainerHigh = DarkFinikPalette.IconButton,
+    surfaceContainerHighest = DarkFinikPalette.Chip,
+    outline = DarkFinikPalette.Border,
+    outlineVariant = DarkFinikPalette.BorderSoft,
+    error = DarkFinikPalette.Red,
+    onError = DarkFinikPalette.InkDeep,
+    errorContainer = DarkFinikPalette.RedNoteBg,
+    onErrorContainer = DarkFinikPalette.RedNoteInk,
 )
 
 private val FinikTypography = Typography(
@@ -50,16 +105,16 @@ private val FinikShapes = Shapes(
     extraLarge = RoundedCornerShape(20.dp),
 )
 
-/**
- * Тема приложения. Макет светлый и один; тёмной темы в нём нет,
- * поэтому цвета фиксированы и не зависят от системной темы.
- */
+/** Следует системной светлой или тёмной теме во всех экранах приложения. */
 @Composable
 fun FinikTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = FinikColorScheme,
-        typography = FinikTypography,
-        shapes = FinikShapes,
-        content = content,
-    )
+    val isDark = isSystemInDarkTheme()
+    CompositionLocalProvider(LocalFinikPalette provides if (isDark) DarkFinikPalette else LightFinikPalette) {
+        MaterialTheme(
+            colorScheme = if (isDark) darkFinikColorScheme else lightFinikColorScheme,
+            typography = FinikTypography,
+            shapes = FinikShapes,
+            content = content,
+        )
+    }
 }

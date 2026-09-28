@@ -1,6 +1,9 @@
 package dev.bober.finik.feature.tasks.navigation
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
@@ -19,6 +22,7 @@ fun NavController.navigateToTasks(navOptions: NavOptions? = null) {
 }
 
 fun NavGraphBuilder.tasksScreen(
+    contentPadding: PaddingValues,
     onOpenPlan: () -> Unit,
     onOpenGoal: () -> Unit,
     onOpenShop: () -> Unit,
@@ -27,6 +31,7 @@ fun NavGraphBuilder.tasksScreen(
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
         TasksScreen(
+            modifier = Modifier.padding(contentPadding),
             onOpenPlan = onOpenPlan,
             onOpenGoal = onOpenGoal,
             onOpenShop = onOpenShop,

@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -20,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.designsystem.theme.unbounded
@@ -35,6 +40,7 @@ fun FinikConfirmSheet(
     cancelText: String = "Не сейчас",
     warning: Boolean = false,
 ) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -58,6 +64,7 @@ fun FinikConfirmSheet(
                     indication = null,
                     onClick = {},
                 )
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -76,6 +83,7 @@ fun FinikConfirmSheet(
                     radius = 12.dp,
                     textStyle = nunito(15),
                     containerColor = if (warning) FinikColor.Red else FinikColor.Green,
+                    contentColor = if (warning) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
                 )
                 OutlineButton(
                     text = cancelText,
@@ -86,5 +94,6 @@ fun FinikConfirmSheet(
                 )
             }
         }
+    }
     }
 }

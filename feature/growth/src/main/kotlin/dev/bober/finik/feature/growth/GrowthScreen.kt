@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import dev.bober.finik.core.designsystem.component.BackHeader
 import dev.bober.finik.core.designsystem.component.FinikCard
 import dev.bober.finik.core.designsystem.component.FinikProgressBar
+import dev.bober.finik.core.designsystem.component.FinikIcons
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.color
@@ -37,7 +39,6 @@ import dev.bober.finik.core.model.PetProfile
 import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.model.WeekLogEntry
 import dev.bober.finik.core.model.growthStages
-import dev.bober.finik.core.pet.StageAnimal
 
 /** «Взросление питомца»: текущая стадия с опытом, список стадий и итоги недели. */
 @Composable
@@ -48,6 +49,7 @@ internal fun GrowthScreen(
     pet: PetProfile = SampleData.pet,
     stages: List<GrowthStage> = growthStages,
     weekLog: List<WeekLogEntry> = SampleData.weekLog,
+    hasReport: Boolean = true,
 ) {
     Column(
         modifier = modifier
@@ -86,10 +88,11 @@ internal fun GrowthScreen(
         }
 
         FinikCard(
-            modifier = Modifier.clickable(onClick = onOpenReport),
+            modifier = if (hasReport) Modifier.clickable(onClick = onOpenReport) else Modifier,
             gap = 9.dp,
         ) {
             Text(text = "Итоги недели", style = nunito(14.5), color = FinikColor.Ink)
+            if (!hasReport) Text(text = "Появятся после закрытия первого периода.", style = nunito(13), color = FinikColor.Text50)
             weekLog.forEach { entry ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(
@@ -126,9 +129,17 @@ private fun StageRow(stage: GrowthStage, index: Int, currentIndex: Int) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.BottomCenter) {
-            StageAnimal(
-                size = (18 + index * 8).dp,
-                color = if (open) FinikColor.GreenStageOpen else FinikColor.BorderStrong,
+            Icon(
+                imageVector = when (index) {
+                    0 -> FinikIcons.StageBaby
+                    1 -> FinikIcons.StageExplorer
+                    2 -> FinikIcons.StageTeen
+                    3 -> FinikIcons.StageAdult
+                    else -> FinikIcons.StageWise
+                },
+                contentDescription = null,
+                modifier = Modifier.size((26 + index.coerceAtMost(4) * 3).dp),
+                tint = if (open) FinikColor.GreenStageOpen else FinikColor.Text58,
             )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -1,6 +1,9 @@
 package dev.bober.finik.feature.plan.navigation
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
@@ -18,11 +21,12 @@ fun NavController.navigateToPlan(navOptions: NavOptions? = null) {
     navigate(route = PlanRoute, navOptions = navOptions)
 }
 
-fun NavGraphBuilder.planScreen() {
+fun NavGraphBuilder.planScreen(contentPadding: PaddingValues) {
     composable<PlanRoute> {
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
         PlanScreen(
+            modifier = Modifier.padding(contentPadding),
             plan = state.plan,
             planConfirmed = state.planConfirmed,
             onAdjust = vm::changePlan,

@@ -43,18 +43,14 @@ fun NavGraphBuilder.profileScreens(navController: NavController) {
             onOpenBadges = { navController.navigate(BadgesRoute) },
             onOpenAdult = { navController.navigate(AdultRoute) },
             earnedTotal = state.earnedTotal,
-            savedTotal = state.selectedGoal.saved,
+            savedTotal = state.goals.sumOf { it.saved },
             weeksDone = state.weeksDone,
             income = state.plan.weeklyIncome,
-            soundOn = state.soundOn,
+            motionOn = state.motionOn,
             badgesDone = state.badges.count { it.isDone },
             badgesTotal = state.badges.size,
             onIncome = vm::setIncome,
-            onSound = vm::setSound,
-            onReset = {
-                vm.resetProfile()
-                navController.popBackStack()
-            },
+            onMotion = vm::setMotion,
         )
     }
     composable<BadgesRoute> {
@@ -69,19 +65,29 @@ fun NavGraphBuilder.profileScreens(navController: NavController) {
     composable<AdultRoute> {
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
+        val onlineExtras by vm.extrasEnabled.collectAsStateWithLifecycle()
         AdultScreen(
             weeksDone = state.weeksDone,
             saved = state.selectedGoal.saved,
             stageName = state.pet.stage.name,
             tasksDone = state.tasks.count { it.done },
             tasksTotal = state.tasks.size,
-            demoMode = state.demoMode,
+            onlineExtras = onlineExtras,
+            wordOfDay = state.wordOfDay,
+            todayEvent = state.todayEvent,
             onBack = { navController.popBackStack() },
-            onToggleDemo = vm::setDemo,
-            onBonus = vm::parentBonus,
+            onToggleOnlineExtras = vm::setOnlineExtras,
+            onBonus = { vm.parentBonus() },
+            onLoadExtra = vm::loadExtra,
+            onLoadQuiz = vm::loadAiQuiz,
+            onAnswerQuiz = vm::answerAiQuiz,
+            onChooseEvent = vm::chooseEvent,
+            onChat = vm::chat,
             onReset = {
-                vm.resetProfile()
-                navController.popBackStack()
+                vm.resetProfile { navController.popBackStack() }
+            },
+            onLocalReset = {
+                vm.resetProfile(localOnly = true) { navController.popBackStack() }
             },
         )
     }

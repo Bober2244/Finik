@@ -5,6 +5,7 @@ import dev.bober.finik.core.network.dto.PlanIn
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.request.get
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
@@ -31,7 +32,72 @@ class FinikJsonTest {
     }
 }
 
+class NetworkConfigTest {
+    @Test
+    fun blankAddressLeavesNetworkUnconfigured() {
+        val config = NetworkConfig("  ")
+        assertEquals("", config.normalizedBaseUrl)
+        assertFalse(config.isConfigured)
+        assertFalse(config.isSecure)
+
+        val client = HttpClientFactory.create(config.baseUrl, { null }, MockEngine { error("Unexpected request") })
+        client.close()
+    }
+
+    @Test
+    fun blankAddressCannotIssueApiRequest() = runTest {
+        var requests = 0
+        val engine = MockEngine {
+            requests++
+            json("{}")
+        }
+        val api = createFinikApi("", { null }, engine)
+        runCatching { api.getState() }
+        assertEquals(0, requests)
+    }
+
+    @Test
+    fun normalizesAbsoluteAddressAndIdentifiesHttps() {
+        val config = NetworkConfig(" https://example.org/finik ")
+        assertEquals("https://example.org/finik/", config.normalizedBaseUrl)
+        assertTrue(config.isConfigured)
+        assertTrue(config.isSecure)
+        assertEquals("http://10.0.2.2:8000/", NetworkConfig.normalize("http://10.0.2.2:8000"))
+    }
+
+    @Test
+    fun unsafeOrRelativeAddressesLeaveOptionalNetworkDisabled() {
+        listOf("example.org", "ftp://example.org", "https://user:secret@example.org", "https://example.org/?key=1")
+            .forEach { address ->
+                assertFalse(NetworkConfig(address).isConfigured)
+                try {
+                    NetworkConfig.normalize(address)
+                    throw AssertionError("Expected invalid URL: $address")
+                } catch (_: IllegalArgumentException) {
+                    // Invalid configuration must fail before creating HTTP requests.
+                }
+            }
+    }
+}
+
 class FinikApiTest {
+    @Test
+    fun requestToDifferentOriginIsBlocked() = runTest {
+        var requests = 0
+        val engine = MockEngine {
+            requests++
+            json("{}")
+        }
+        val client = HttpClientFactory.create("https://finik.example/", { "private-token" }, engine)
+        try {
+            client.get("https://other.example/content")
+            throw AssertionError("Expected a blocked cross-origin request")
+        } catch (_: IllegalStateException) {
+            assertEquals(0, requests)
+        }
+        client.close()
+    }
+
     @Test
     fun loginParsesTokenAndSkipsBearer() = runTest {
         var sawAuth = false

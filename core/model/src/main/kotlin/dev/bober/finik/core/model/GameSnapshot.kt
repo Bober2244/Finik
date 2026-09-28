@@ -43,6 +43,10 @@ data class GameSnapshot(
     val wordOfDay: WordOfDay? = null,
     val wilted: Boolean = false,
     val wiltXpLost: Int = 0,
+    val transactions: List<MoneyTransaction> = emptyList(),
+    val motionOn: Boolean = true,
+    val consecutiveOpenDays: Int = 0,
+    val qualifiedSavingsWeeks: Int = 0,
 ) {
     val selectedGoal: SavingsGoal
         get() = goals.firstOrNull { it.id == selectedGoalId } ?: goals.first()

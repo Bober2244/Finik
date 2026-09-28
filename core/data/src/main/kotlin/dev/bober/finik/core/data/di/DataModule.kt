@@ -24,6 +24,6 @@ val dataModule = module {
     single {
         createFinikApi(baseUrl = get<NetworkConfig>().baseUrl, tokenProvider = { get<SessionStore>().token() })
     }
-    single { FinikRepository(db = get(), api = get(), session = get(), deviceIds = get()) }
+    single { FinikRepository(db = get(), apiProvider = { get() }, session = get(), deviceIds = get(), networkConfig = get()) }
     viewModelOf(::FinikViewModel)
 }

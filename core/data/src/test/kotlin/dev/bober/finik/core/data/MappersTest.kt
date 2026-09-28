@@ -53,8 +53,8 @@ class MappersTest {
 
     @Test
     fun deviceIdMeetsServerLength() {
-        val id = DeviceIdProvider.build("1a2b3c4d5e6f7890")
-        assertTrue(id.startsWith("android-"))
+        val id = DeviceIdProvider.build()
+        assertTrue(id.startsWith("finik-"))
         assertTrue(id.length in 8..128)
     }
 }

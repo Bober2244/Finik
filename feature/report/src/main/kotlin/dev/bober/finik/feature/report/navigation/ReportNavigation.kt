@@ -7,8 +7,8 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
 import dev.bober.finik.core.data.FinikViewModel
-import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.feature.report.ReportScreen
+import dev.bober.finik.feature.report.EmptyReportScreen
 import kotlinx.serialization.Serializable
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -27,6 +27,10 @@ fun NavGraphBuilder.reportScreen(
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
         val report = state.report
+        if (report == null) {
+            EmptyReportScreen(onBack = onBack)
+            return@composable
+        }
         ReportScreen(
             onBack = onBack,
             onNewPlan = onNewPlan,
@@ -34,10 +38,10 @@ fun NavGraphBuilder.reportScreen(
                 vm.repeatLastPlan()
                 onNewPlan()
             },
-            week = report?.week ?: SampleData.REPORT_WEEK,
-            rows = report?.rows ?: SampleData.reportRows,
-            summary = report?.summary ?: SampleData.REPORT_SUMMARY,
-            note = report?.note ?: SampleData.REPORT_NOTE,
+            week = report.week,
+            rows = report.rows,
+            summary = report.summary,
+            note = report.note,
         )
     }
 }
