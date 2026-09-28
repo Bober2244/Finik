@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -85,12 +86,16 @@ internal fun GoalScreen(
         ) {
             ScreenTitle(text = "Мечта")
             GoalCard(goal = goal, plannedSave = plannedSave, averageWeeklySave = actualAverage, weeksLeft = weeksLeft, weeksDone = weeksDone)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 goals.forEach { option ->
                     val selected = option.id == goal.id
                     Column(
                         modifier = Modifier
                             .weight(1f)
+                            .fillMaxHeight()
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (selected) FinikColor.GreenSelected else FinikColor.Surface)
                             .border(2.dp, if (selected) FinikColor.Green else FinikColor.Border, RoundedCornerShape(12.dp))

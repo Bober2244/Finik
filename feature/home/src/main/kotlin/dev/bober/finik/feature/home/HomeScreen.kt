@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -263,7 +265,10 @@ private fun CareRow(
             }
         }
     } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
             actions.forEach { action ->
                 val left = plan.entry(action.category).left
                 CareButton(
@@ -271,7 +276,7 @@ private fun CareRow(
                     left = left,
                     enabled = planConfirmed && left >= action.cost,
                     horizontal = false,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                     onClick = { onCare(action.category) },
                 )
             }
@@ -344,9 +349,12 @@ private fun SnapshotRow(
     onOpenGoal: () -> Unit,
     onOpenTasks: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
         FinikCard(
-            modifier = Modifier.weight(1f).clickable(onClick = onOpenGoal),
+            modifier = Modifier.weight(1f).fillMaxHeight().clickable(onClick = onOpenGoal),
             radius = 16.dp,
             background = FinikColor.GreenCard,
             borderColor = null,
@@ -357,7 +365,7 @@ private fun SnapshotRow(
             Text(text = title, style = nunito(12, FontWeight.SemiBold, lineHeight = 1.3), color = FinikColor.GreenInk40s, maxLines = 2)
         }
         FinikCard(
-            modifier = Modifier.weight(1f).clickable(onClick = onOpenTasks),
+            modifier = Modifier.weight(1f).fillMaxHeight().clickable(onClick = onOpenTasks),
             radius = 16.dp,
             gap = 6.dp,
         ) {
@@ -385,6 +393,7 @@ private fun PlanCard(plan: WeekPlan, onEdit: () -> Unit) {
         }
         SegmentedBar(
             segments = plan.entries.map { it.planned.toFloat() to it.category.color },
+            totalWeight = (plan.total + plan.freeCoins).toFloat(),
             height = 14.dp,
         )
         val rows = plan.entries.chunked(2)

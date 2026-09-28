@@ -59,6 +59,8 @@ android {
             buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
         }
         release {
+            isMinifyEnabled = true
+            isShrinkResources = true
             buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("finikRelease")

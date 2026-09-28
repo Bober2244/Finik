@@ -33,6 +33,7 @@ import dev.bober.finik.core.designsystem.component.FinikCard
 import dev.bober.finik.core.designsystem.component.FinikProgressBar
 import dev.bober.finik.core.designsystem.component.OutlineButton
 import dev.bober.finik.core.designsystem.component.PrimaryButton
+import dev.bober.finik.core.designsystem.component.SegmentedBar
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
 import dev.bober.finik.core.designsystem.theme.color
@@ -63,10 +64,12 @@ internal fun PlanScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         UnallocatedCard(plan = plan)
+        val availableBudget = (plan.total + plan.freeCoins).coerceAtLeast(1)
         plan.entries.forEach { entry ->
             PlanEntryCard(
                 entry = entry,
-                percent = plan.percentOf(entry.category),
+                allocationPercent = (entry.planned * 100f / availableBudget).toInt(),
+                allocationProgress = entry.planned.toFloat() / availableBudget,
                 confirmed = planConfirmed,
                 onAdjust = { delta -> onAdjust(entry.category, delta) },
             )
@@ -134,6 +137,16 @@ private fun UnallocatedCard(plan: WeekPlan) {
                 Text(text = "в копилку $savePercent%", style = nunito(12.5), color = FinikColor.CoinInk44)
             }
         }
+        Text(
+            text = "Распределено ${plan.total} из ${plan.total + plan.freeCoins}",
+            style = nunito(12.5, FontWeight.SemiBold),
+            color = FinikColor.CoinInk44,
+        )
+        SegmentedBar(
+            segments = plan.entries.map { it.planned.toFloat() to it.category.color },
+            totalWeight = (plan.total + plan.freeCoins).toFloat(),
+            track = FinikColor.IconButton,
+        )
         Text(text = hint, style = nunito(14, FontWeight.SemiBold, lineHeight = 1.45), color = FinikColor.CoinInk42)
     }
 }
@@ -141,7 +154,8 @@ private fun UnallocatedCard(plan: WeekPlan) {
 @Composable
 private fun PlanEntryCard(
     entry: PlanEntry,
-    percent: Int,
+    allocationPercent: Int,
+    allocationProgress: Float,
     confirmed: Boolean,
     onAdjust: (Int) -> Unit,
 ) {
@@ -171,21 +185,24 @@ private fun PlanEntryCard(
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             FinikProgressBar(
-                progress = if (entry.planned > 0) (entry.spent.toFloat() / entry.planned).coerceIn(0f, 1f) else 0f,
+                progress = allocationProgress,
                 color = entry.category.color,
                 track = FinikColor.IconButton,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = "${entry.spent} из ${entry.planned}",
+                text = "$allocationPercent% бюджета",
                 style = nunito(13),
                 color = FinikColor.Text50,
                 textAlign = TextAlign.End,
                 maxLines = 1,
-                modifier = Modifier.width(100.dp),
             )
         }
-        Text(text = "$percent% дохода · осталось ${entry.left.coerceAtLeast(0)} монет", style = nunito(13, FontWeight.SemiBold), color = FinikColor.Text46)
+        Text(
+            text = "${entry.spent} из ${entry.planned} потрачено · осталось ${entry.left.coerceAtLeast(0)} монет",
+            style = nunito(13, FontWeight.SemiBold),
+            color = FinikColor.Text46,
+        )
     }
 }
 

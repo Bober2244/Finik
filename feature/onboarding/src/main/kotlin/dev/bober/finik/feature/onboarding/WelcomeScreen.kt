@@ -2,7 +2,10 @@ package dev.bober.finik.feature.onboarding
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,6 +20,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -44,58 +51,79 @@ internal fun WelcomeScreen(
     onStart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(FinikColor.Background)
             .radialGlow(FinikColor.GreenGlow, FinikColor.Background)
-            .systemBarsPadding()
-            .padding(start = 24.dp, end = 24.dp, top = 36.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(30.dp, Alignment.CenterVertically),
+            .systemBarsPadding(),
     ) {
+        val compact = maxHeight < 680.dp
+        var petInteractionActive by remember { mutableStateOf(false) }
         Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState(), enabled = !petInteractionActive)
+                .padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = if (compact) 20.dp else 36.dp,
+                    bottom = if (compact) 20.dp else 40.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(
+                if (compact) 18.dp else 30.dp,
+                Alignment.CenterVertically,
+            ),
         ) {
-            PetFigure(
-                species = PetSpecies.OWL,
-                spec = PetFigureSpec.Welcome.copy(width = 190.dp, height = 210.dp, live3d = true),
-                action = PetAnimation.GREET,
-            )
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    text = "Финик",
-                    style = unbounded(34, lineHeight = 1.05, letterSpacing = (-0.02).em),
-                    color = FinikColor.Ink,
-                )
-                Text(
-                    text = "Сначала реши: потратить на нужное, на желаемое или отложить. Потом увидишь, как это меняет питомца.",
-                    style = nunito(16, FontWeight.SemiBold, lineHeight = 1.5),
-                    color = FinikColor.Text43,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.widthIn(max = 290.dp),
-                )
-            }
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.height(IntrinsicSize.Max),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                StatTile(value = "нужное", label = "еда и вода", valueColor = FinikColor.GreenStat)
-                StatTile(value = "желаемое", label = "игры, можно ждать", valueColor = FinikColor.RedStat)
-                StatTile(value = "копилка", label = "на мечту", valueColor = FinikColor.CoinInk40)
-            }
-            PrimaryButton(
-                text = "Создать питомца",
-                onClick = onStart,
                 modifier = Modifier.fillMaxWidth(),
-            )
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(if (compact) 14.dp else 20.dp),
+            ) {
+                PetFigure(
+                    species = PetSpecies.OWL,
+                    spec = PetFigureSpec.Welcome.copy(
+                        width = if (compact) 170.dp else 190.dp,
+                        height = if (compact) 180.dp else 210.dp,
+                        live3d = true,
+                    ),
+                    action = PetAnimation.GREET,
+                    onInteractionChange = { petInteractionActive = it },
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = "Финик",
+                        style = unbounded(34, lineHeight = 1.05, letterSpacing = (-0.02).em),
+                        color = FinikColor.Ink,
+                    )
+                    Text(
+                        text = "Сначала реши: потратить на нужное, на желаемое или отложить. Потом увидишь, как это меняет питомца.",
+                        style = nunito(16, FontWeight.SemiBold, lineHeight = 1.5),
+                        color = FinikColor.Text43,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(max = 290.dp),
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.height(IntrinsicSize.Max),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    StatTile(value = "нужное", label = "еда и вода", valueColor = FinikColor.GreenStat)
+                    StatTile(value = "желаемое", label = "игры, можно ждать", valueColor = FinikColor.RedStat)
+                    StatTile(value = "копилка", label = "на мечту", valueColor = FinikColor.CoinInk40)
+                }
+                PrimaryButton(
+                    text = "Создать питомца",
+                    onClick = onStart,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

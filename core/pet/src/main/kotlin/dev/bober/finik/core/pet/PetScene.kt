@@ -65,6 +65,8 @@ import io.github.sceneview.texture.setBitmap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.DataInputStream
+import java.io.EOFException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -85,7 +87,7 @@ internal fun PetScene(
     modifier: Modifier = Modifier,
 ) {
     var retry by remember { mutableIntStateOf(0) }
-    key(retry) {
+    key(species.modelAssetPath, retry) {
         PetSceneSession(species, stageIndex, appearance, mood, action, actionEventId, animate, modelScaleMultiplier, onSceneReady, onSceneFailure, onInteractionChange, modifier) {
             onSceneRetry()
             retry++
@@ -109,11 +111,13 @@ private fun PetSceneSession(
     modifier: Modifier,
     onRetry: () -> Unit,
 ) {
-    // Scene-specific resources leave with this route; shared loaders survive tab switches.
+    // The model loader leaves with this scene; the engine and other loaders survive tab switches.
     // SceneView suspends its frame loop with the host lifecycle when backgrounded.
     val runtime = LocalPetRuntime.current
     val engine = runtime?.engine ?: rememberEngine()
-    val modelLoader = runtime?.modelLoader ?: rememberModelLoader(engine)
+    // Each visible scene owns its decoder queue. Disposing one scene must not cancel
+    // texture uploads for another scene during a navigation transition.
+    val modelLoader = rememberModelLoader(engine)
     val materialLoader = runtime?.materialLoader ?: rememberMaterialLoader(engine)
     val environmentLoader = runtime?.environmentLoader ?: rememberEnvironmentLoader(engine)
     val surfaceMirrorer = rememberSurfaceMirrorer()
@@ -287,6 +291,11 @@ private class PetAsset(val instance: ModelInstance) {
     var colorTexture: Texture? = null
 
     fun destroy(modelLoader: ModelLoader, engine: Engine) {
+        // gltfio decodes embedded images after createModelInstance() returns. Its decoder
+        // retains Texture pointers, so cancel pending uploads before destroying the model.
+        if (modelLoader.isLoading) {
+            modelLoader.resourceLoader.asyncCancelLoad()
+        }
         modelLoader.destroyModel(instance.model)
         colorTexture?.let(engine::destroyTexture)
     }
@@ -301,10 +310,31 @@ private fun rememberPetModel(engine: Engine, modelLoader: ModelLoader, path: Str
         try {
             // Only file IO runs off-main. All Filament calls stay on Main.
             val buffer = withContext(Dispatchers.IO) {
-                val bytes = context.assets.open(path).use { it.readBytes() }
-                val buffer = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.LITTLE_ENDIAN)
-                buffer.put(bytes).rewind()
-                buffer
+                DataInputStream(context.assets.open(path)).use { stream ->
+                    // A GLB records its full size in the 12-byte header. Fill the native
+                    // buffer in chunks instead of duplicating the 29 MB model on the Java heap.
+                    val header = ByteArray(12)
+                    stream.readFully(header)
+                    val glbHeader = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
+                    require(glbHeader.int == 0x46546C67 && glbHeader.int == 2) {
+                        "Invalid GLB header: $path"
+                    }
+                    val length = glbHeader.int
+                    require(length in header.size..(128 * 1024 * 1024)) {
+                        "Invalid GLB size: $length"
+                    }
+                    val buffer = ByteBuffer.allocateDirect(length).order(ByteOrder.LITTLE_ENDIAN)
+                    buffer.put(header)
+                    val chunk = ByteArray(64 * 1024)
+                    while (buffer.hasRemaining()) {
+                        val count = stream.read(chunk, 0, minOf(chunk.size, buffer.remaining()))
+                        if (count < 0) throw EOFException("Truncated GLB: $path")
+                        buffer.put(chunk, 0, count)
+                    }
+                    require(stream.read() == -1) { "GLB size does not match header: $path" }
+                    buffer.rewind()
+                    buffer
+                }
             }
             // Each scene receives independent material instances for its selected color.
             value = PetLoadState(PetAsset(modelLoader.createModelInstance(buffer)))

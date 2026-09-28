@@ -6,7 +6,9 @@ android {
     namespace = "dev.bober.finik.core.designsystem"
     buildFeatures {
         // Шрифты Nunito / Unbounded лежат в res/font.
-        androidResources = true
+        androidResources {
+            enable = true
+        }
     }
 }
 

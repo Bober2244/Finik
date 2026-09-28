@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -114,7 +117,10 @@ internal fun ShopScreen(
                 val columns = if (maxWidth < 380.dp) 1 else 2
                 Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     items.chunked(columns).forEach { pair ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                            horizontalArrangement = Arrangement.spacedBy(9.dp),
+                        ) {
                             pair.forEach { item ->
                                 ShopCard(
                                     item = item,
@@ -164,7 +170,7 @@ internal fun ShopScreen(
 private fun RowScope.ShopCard(item: ShopItem, left: Int, planConfirmed: Boolean, onClick: () -> Unit) {
     val canBuy = planConfirmed && left >= item.cost
     FinikCard(
-        modifier = Modifier.weight(1f),
+        modifier = Modifier.weight(1f).fillMaxHeight(),
         radius = 16.dp,
         borderColor = if (item.isSale) FinikColor.RedBorderSale else FinikColor.Border,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
@@ -226,6 +232,7 @@ private fun RowScope.ShopCard(item: ShopItem, left: Int, planConfirmed: Boolean,
                 )
             }
         }
+        Spacer(modifier = Modifier.weight(1f))
         PrimaryButton(
             text = when {
                 !planConfirmed -> "Нужен план"

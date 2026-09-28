@@ -1,5 +1,8 @@
 package dev.bober.finik.core.designsystem.component
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,11 +18,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,8 +73,13 @@ fun FinikShellTopBar(
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CoinChip(value = coins.toString(), caption = "свободно")
-                StageChip(stageName = stageName, xpPercent = xpPercent, onClick = onStageClick, enabled = enabled)
-                Spacer(modifier = Modifier.weight(1f))
+                StageChip(
+                    stageName = stageName,
+                    xpPercent = xpPercent,
+                    onClick = onStageClick,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                )
                 TopBarActions(onHelpClick = onHelpClick, onProfileClick = onProfileClick, enabled = enabled)
             }
         }
@@ -80,6 +88,11 @@ fun FinikShellTopBar(
 
 @Composable
 private fun StageChip(stageName: String, xpPercent: Int, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = xpPercent.coerceIn(0, 100) / 100f,
+        animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing),
+        label = "Прогресс роста питомца",
+    )
     Row(
         modifier = modifier
             .heightIn(min = 48.dp)
@@ -97,15 +110,15 @@ private fun StageChip(stageName: String, xpPercent: Int, onClick: () -> Unit, mo
         )
         Box(
             modifier = Modifier
-                .width(38.dp)
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
+                .weight(1f)
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
                 .background(FinikColor.GreenTrack),
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(xpPercent.coerceIn(0, 100) / 100f)
+                    .fillMaxWidth(animatedProgress)
                     .background(FinikColor.GreenInk34),
             )
         }
