@@ -47,6 +47,14 @@ data class GameSnapshot(
     val motionOn: Boolean = true,
     val consecutiveOpenDays: Int = 0,
     val qualifiedSavingsWeeks: Int = 0,
+    val weekNumber: Int = 1,
+    val weekStart: String = "",
+    val weekEnd: String = "",
+    val timezone: String = "UTC",
+    val gameNow: String = "",
+    val canAdvanceTime: Boolean = false,
+    val cachedAt: String? = null,
+    val nextWeekIncome: Int = plan.weeklyIncome,
 ) {
     val selectedGoal: SavingsGoal
         get() = goals.firstOrNull { it.id == selectedGoalId } ?: goals.first()

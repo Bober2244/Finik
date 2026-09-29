@@ -9,18 +9,67 @@ import kotlinx.coroutines.flow.first
 
 private val Context.finikSessionStore by preferencesDataStore(name = "finik_session")
 
-class SessionStore(context: Context) {
+interface PlayerSession {
+    suspend fun mode(): String
+    suspend fun token(): String?
+    suspend fun activate(mode: String, token: String)
+    suspend fun clearToken()
+    suspend fun saveToken(value: String)
+    suspend fun deviceId(): String?
+    suspend fun saveDeviceId(value: String)
+    suspend fun serverAddress(): String?
+    suspend fun saveServerAddress(address: String)
+    suspend fun boundServer(): String?
+    suspend fun selectServer(address: String, saveOverride: Boolean)
+}
+
+class SessionStore(context: Context) : PlayerSession {
     private val dataStore = context.applicationContext.finikSessionStore
 
-    suspend fun token(): String? = dataStore.data.first()[TOKEN]?.takeIf { it.isNotBlank() }
+    override suspend fun serverAddress(): String? = dataStore.data.first()[SERVER_ADDRESS]
 
-    suspend fun saveToken(value: String) {
-        dataStore.edit { it[TOKEN] = value }
+    override suspend fun saveServerAddress(address: String) {
+        dataStore.edit { it[SERVER_ADDRESS] = address }
     }
 
-    suspend fun deviceId(): String? = dataStore.data.first()[DEVICE_ID]?.takeIf { it.isNotBlank() }
+    override suspend fun boundServer(): String? = dataStore.data.first()[SESSION_SERVER]
 
-    suspend fun saveDeviceId(value: String) {
+    override suspend fun selectServer(address: String, saveOverride: Boolean) {
+        dataStore.edit {
+            it[SESSION_SERVER] = address
+            if (saveOverride) it[SERVER_ADDRESS] = address
+            it.remove(TOKEN)
+            it.remove(DEMO_TOKEN)
+            it.remove(SNAPSHOT)
+        }
+    }
+
+    override suspend fun mode(): String = dataStore.data.first()[MODE] ?: "normal"
+
+    override suspend fun token(): String? {
+        val data = dataStore.data.first()
+        return data[if (data[MODE] == "demo") DEMO_TOKEN else TOKEN]?.takeIf { it.isNotBlank() }
+    }
+
+    override suspend fun activate(mode: String, token: String) {
+        dataStore.edit { data ->
+            data[MODE] = mode
+            data[if (mode == "demo") DEMO_TOKEN else TOKEN] = token
+        }
+    }
+
+    override suspend fun clearToken() {
+        dataStore.edit { it.remove(if (it[MODE] == "demo") DEMO_TOKEN else TOKEN) }
+    }
+
+
+    override suspend fun saveToken(value: String) {
+        dataStore.edit { it[if (it[MODE] == "demo") DEMO_TOKEN else TOKEN] = value }
+    }
+
+    override suspend fun deviceId(): String? = dataStore.data.first()[DEVICE_ID]?.takeIf { it.isNotBlank() }
+
+    override suspend fun saveDeviceId(value: String) {
         dataStore.edit { it[DEVICE_ID] = value }
     }
 
@@ -44,12 +93,18 @@ class SessionStore(context: Context) {
         dataStore.edit {
             it.remove(SNAPSHOT)
             it.remove(TOKEN)
+            it.remove(DEMO_TOKEN)
+            it.remove(MODE)
             it.remove(DEVICE_ID)
             it.remove(ONLINE_EXTRAS)
         }
     }
 
     companion object {
+        private val SERVER_ADDRESS = stringPreferencesKey("server_address")
+        private val SESSION_SERVER = stringPreferencesKey("session_server")
+        private val MODE = stringPreferencesKey("mode")
+        private val DEMO_TOKEN = stringPreferencesKey("demo_token")
         private val TOKEN = stringPreferencesKey("token")
         private val DEVICE_ID = stringPreferencesKey("device_id")
         private val ONLINE_EXTRAS = booleanPreferencesKey("online_extras")

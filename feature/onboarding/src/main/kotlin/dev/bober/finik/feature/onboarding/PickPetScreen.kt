@@ -70,7 +70,6 @@ internal fun PickPetScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .systemBarsPadding()
             .verticalScroll(rememberScrollState(), enabled = !petInteractionActive)
             .padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 24.dp),

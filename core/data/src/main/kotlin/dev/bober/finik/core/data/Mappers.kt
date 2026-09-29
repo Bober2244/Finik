@@ -1,5 +1,7 @@
 package dev.bober.finik.core.data
 
+import dev.bober.finik.core.model.*
+import dev.bober.finik.core.network.dto.*
 import dev.bober.finik.core.model.AiQuiz
 import dev.bober.finik.core.model.AiQuizAnswer
 import dev.bober.finik.core.model.AiQuizQuestion
@@ -70,11 +72,11 @@ internal fun String.toCategoryOrNull(): SpendCategory? =
 internal fun String.toCategory(): SpendCategory = toCategoryOrNull() ?: SpendCategory.FOOD
 
 internal fun PetOut.toModel(): PetProfile {
-    val look = lookVariant.coerceIn(0, PetPotStyle.entries.lastIndex)
+    val look = lookVariant.coerceIn(0, 5)
     return PetProfile(
         name = name,
         species = PetSpecies.fromStored(species),
-        potStyle = PetPotStyle.entries[look],
+        potStyle = PetPotStyle.entries[look.coerceAtMost(PetPotStyle.entries.lastIndex)],
         stageIndex = stageIndex,
         xp = xpPercentInStage(xp),
         totalXp = xp,
@@ -84,6 +86,10 @@ internal fun PetOut.toModel(): PetProfile {
         lookVariant = look,
         equippedPot = equippedPot,
         equippedAccessory = equippedAccessory,
+        appearance = PetAppearance(
+            furColor = PetFurColor.entries.getOrElse(lookVariant) { PetFurColor.BLUE },
+            accessories = accessories.map(PetAccessory::fromStored).filter { it != PetAccessory.NONE }.toSet(),
+        ),
     )
 }
 
@@ -170,6 +176,7 @@ internal fun TaskOut.toModel(): TaskItem {
         progress = progress,
         goalCount = goal,
         rewarded = rewarded,
+        activity = activity,
     )
 }
 
@@ -178,6 +185,9 @@ internal fun QuestionOut.toModel(): QuizQuestion = QuizQuestion(
     options = options.map { it.animalText() },
     rightIndex = -1,
     explanation = "",
+    slug = slug,
+    activity = activity,
+    scene = scene.animalText(),
 )
 
 internal fun AnswerOut.toModel(): LessonAnswer = LessonAnswer(
@@ -205,7 +215,7 @@ internal fun HistoryOut.toReport(): WeekReport? {
             row.category.toCategoryOrNull()?.let { ReportRow(it, row.planned, row.actual) }
         },
         summary = lastSummary,
-        note = lastStory.animalText(),
+        note = lastStory.orEmpty().animalText(),
     )
 }
 
@@ -286,26 +296,8 @@ internal fun PetPotStyle.toLookVariant(): Int = ordinal.coerceIn(0, 2)
 
 fun StateOut.toSnapshot(previous: GameSnapshot): GameSnapshot {
     val selected = goal.toModel()
-    val previousGoals = previous.goals
-    val goals = when {
-        previousGoals.any { it.id == selected.id || it.catalogSlug == selected.catalogSlug } ->
-            previousGoals.map { current ->
-                if (current.id == selected.id || current.catalogSlug == selected.catalogSlug) {
-                    selected.copy(id = current.id, catalogSlug = selected.catalogSlug.ifBlank { current.catalogSlug })
-                } else {
-                    current
-                }
-            }
-        else -> listOf(selected) + previousGoals
-    }
-    val mappedPet = pet.toModel()
-    val pet = mappedPet.copy(
-        dayOfWeek = week.day,
-        // The current API has no animal appearance fields. Never discard local edits on refresh.
-        appearance = if (previous.onboarded && previous.pet.species == mappedPet.species) {
-            previous.pet.appearance
-        } else mappedPet.appearance,
-    )
+    val goals = this.goals.map { it.toModel() }.ifEmpty { listOf(selected) }
+    val pet = pet.toModel().copy(dayOfWeek = week.day)
     val needs = this.pet.needs.mapNotNull { need ->
         need.category.toCategoryOrNull()?.let { NeedLevel(it, need.percent) }
     }.ifEmpty { previous.needs }
@@ -314,11 +306,18 @@ fun StateOut.toSnapshot(previous: GameSnapshot): GameSnapshot {
     }.ifEmpty { previous.care }
     val streak = streak.days.map { StreakDay(it.label, it.done) }.ifEmpty { previous.streak }
     return previous.copy(
+        demoMode = mode == "demo",
+        weekNumber = week.number,
+        weekStart = week.startsAt.orEmpty(),
+        weekEnd = week.endsAt.orEmpty(),
+        timezone = timezone,
+        gameNow = gameNow,
+        canAdvanceTime = canAdvanceTime,
         onboarded = true,
         ready = true,
         online = true,
         pet = pet,
-        plan = week.toPlan(freeCoins, weeklyIncome),
+        plan = week.toPlan(freeCoins, week.income),
         planConfirmed = week.planConfirmed,
         needs = needs,
         care = care,
@@ -335,7 +334,9 @@ fun StateOut.toSnapshot(previous: GameSnapshot): GameSnapshot {
 
 /** Translate retired catalog wording without changing server IDs, purchases, or progression. */
 internal fun String.animalText(): String {
-    val phrases = legacyAnimalText.entries.fold(this) { text, (old, new) ->
+    val corrected = Regex("(?<![\\p{L}\\p{M}])(сова) приболел(?![\\p{L}\\p{M}])", RegexOption.IGNORE_CASE)
+        .replace(this) { "${it.groupValues[1]} приболела" }
+    val phrases = legacyAnimalText.entries.fold(corrected) { text, (old, new) ->
         Regex(Regex.escape(old), RegexOption.IGNORE_CASE).replace(text) { match ->
             if (match.value.first().isUpperCase()) new.replaceFirstChar { it.uppercase() }
             else new.replaceFirstChar { it.lowercase() }
@@ -382,3 +383,13 @@ private val legacyAnimalText = linkedMapOf(
     "Полить" to "Напоить",
     "Подвял" to "Устал",
 )
+
+internal fun AdventureOut.toModel() = Adventure(
+    slug, title.animalText(), summary.animalText(), stage, total, wallet, reserve, care, joy,
+    score, dream, feedback.animalText(), petReaction.animalText(), completed, rewarded, medal,
+    outcome.animalText(), AdventureScene(scene.kind, scene.title.animalText(), scene.story.animalText(),
+        scene.foodNeed, scene.waterNeed, scene.reserveHint,
+        scene.choices.map { AdventureChoice(it.id, it.title.animalText(), it.detail.animalText(), it.cost) }),
+)
+internal fun ReviewOut.toModel() = LearningReview(topic, title, question, options, nextDue)
+internal fun ReviewAnswerOut.toModel() = ReviewAnswer(correct, explanation, nextDue)

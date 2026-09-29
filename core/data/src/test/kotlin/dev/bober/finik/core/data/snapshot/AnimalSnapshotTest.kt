@@ -65,8 +65,8 @@ class AnimalSnapshotTest {
     }
 
     @Test
-    fun owlUsesExistingBackendIdentifier() {
-        assertEquals(listOf("CACTUS"), PetSpecies.entries.map { it.legacyApiName })
+    fun owlUsesSharedBackendIdentifier() {
+        assertEquals(listOf("OWL"), PetSpecies.entries.map { it.legacyApiName })
         listOf("CAT", "FINIK", "OWL", "CACTUS", "DOG", "SPARK").forEach {
             assertEquals(PetSpecies.OWL, PetSpecies.fromStored(it))
         }

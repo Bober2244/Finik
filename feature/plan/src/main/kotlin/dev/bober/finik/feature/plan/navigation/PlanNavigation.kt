@@ -25,10 +25,12 @@ fun NavGraphBuilder.planScreen(contentPadding: PaddingValues) {
     composable<PlanRoute> {
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
+        val busy by vm.busy.collectAsStateWithLifecycle()
         PlanScreen(
             modifier = Modifier.padding(contentPadding),
             plan = state.plan,
             planConfirmed = state.planConfirmed,
+            actionsEnabled = state.online && !busy,
             onAdjust = vm::changePlan,
             onAdvice = vm::applyAdvice,
             onReset = vm::resetPlan,

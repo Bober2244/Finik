@@ -1,5 +1,6 @@
 package dev.bober.finik.core.network
 
+import dev.bober.finik.core.network.dto.*
 import dev.bober.finik.core.network.dto.AnswerIn
 import dev.bober.finik.core.network.dto.AnswerOut
 import dev.bober.finik.core.network.dto.BonusIn
@@ -52,6 +53,10 @@ import io.ktor.client.statement.bodyAsText
 
 class FinikApi(private val client: HttpClient) {
 
+    suspend fun health(): Boolean = client.get("health").parse<HealthOut>().status == "ok"
+
+    fun close() = client.close()
+
     suspend fun login(body: LoginIn): LoginOut =
         client.post("$V1/auth/device") { setBody(body) }.parse()
 
@@ -76,6 +81,25 @@ class FinikApi(private val client: HttpClient) {
 
     suspend fun deposit(body: DepositIn): StateOut =
         client.post("$V1/goal/deposit") { setBody(body) }.parse()
+
+    suspend fun withdraw(body: DepositIn): StateOut =
+        client.post("$V1/goal/withdraw") { setBody(body) }.parse()
+
+    suspend fun topUpPlan(body: PlanIn): StateOut =
+        client.post("$V1/plan/topup") { setBody(body) }.parse()
+
+    suspend fun advanceDemo(body: DemoAdvanceIn): StateOut =
+        client.post("$V1/demo/advance") { setBody(body) }.parse()
+
+    suspend fun adventure(slug: String): AdventureOut = client.get("$V1/adventures/$slug").parse()
+    suspend fun playAdventure(slug: String, body: AdventureActionIn): AdventureOut =
+        client.post("$V1/adventures/$slug/play") { setBody(body) }.parse()
+    suspend fun restartAdventure(slug: String): AdventureOut = client.post("$V1/adventures/$slug/restart").parse()
+    suspend fun review(): ReviewOut = client.get("$V1/learning/review").parse()
+    suspend fun answerReview(body: ReviewAnswerIn): ReviewAnswerOut =
+        client.post("$V1/learning/review/answer") { setBody(body) }.parse()
+    suspend fun taskHint(slug: String, body: HintIn): HintOut =
+        client.post("$V1/tasks/$slug/hint") { setBody(body) }.parse()
 
     suspend fun endDay(): DayOut = client.post("$V1/day/end").parse()
 
@@ -146,6 +170,9 @@ class FinikApi(private val client: HttpClient) {
         const val V1 = "api/v1"
     }
 }
+
+@kotlinx.serialization.Serializable
+private data class HealthOut(val status: String)
 
 private suspend inline fun <reified T> HttpResponse.parse(): T {
     throwIfError()

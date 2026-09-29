@@ -28,6 +28,7 @@ data class TaskItem(
     val progress: Int = 0,
     val goalCount: Int = 0,
     val rewarded: Boolean = false,
+    val activity: String = "QUIZ",
 )
 
 data class QuizQuestion(
@@ -35,6 +36,9 @@ data class QuizQuestion(
     val options: List<String>,
     val rightIndex: Int,
     val explanation: String,
+    val slug: String = "",
+    val activity: String = "CHOICE",
+    val scene: String = "",
 )
 
 data class ScenarioChoice(

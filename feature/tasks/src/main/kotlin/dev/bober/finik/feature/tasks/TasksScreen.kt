@@ -58,95 +58,30 @@ internal fun TasksScreen(
     onOpenShop: () -> Unit,
     modifier: Modifier = Modifier,
     tasks: List<TaskItem> = SampleData.tasks,
-    quiz: List<QuizQuestion> = SampleData.quiz,
-    scenarios: List<ScenarioTask> = emptyList(),
-    onComplete: (taskId: String, correct: Boolean, reward: Int) -> Unit = { _, _, _ -> },
+    actionsEnabled: Boolean = true,
+    onTask: (TaskItem) -> Unit = {},
+    onReview: () -> Unit = {},
 ) {
-    var quizTaskId by rememberSaveable { mutableStateOf<String?>(null) }
-    var scenarioId by rememberSaveable { mutableStateOf<String?>(null) }
-    var unavailable by rememberSaveable { mutableStateOf<String?>(null) }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(FinikColor.Background)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val done = tasks.count { it.done }
-            val available = tasks.filter { !it.done }.sumOf { it.reward }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                ScreenTitle(text = "Задания")
-                Text(
-                    text = "Готово $done/${tasks.size} · награда $available монет",
-                    style = nunito(14, FontWeight.ExtraBold),
-                    color = FinikColor.Text44,
-                )
-            }
-            tasks.forEach { task ->
-                TaskCard(
-                    task = task,
-                    onClick = {
-                        when (task.target) {
-                            TaskTarget.QUIZ -> if (quiz.isNotEmpty()) quizTaskId = task.id else unavailable = "Урок пока недоступен. Попробуй позже."
-                            TaskTarget.SCENARIO -> if (scenarios.any { it.id == task.id }) scenarioId = task.id else unavailable = "Ситуация пока недоступна. Попробуй позже."
-                            TaskTarget.PLAN -> onOpenPlan()
-                            TaskTarget.GOAL -> onOpenGoal()
-                            TaskTarget.SHOP -> onOpenShop()
-                            null -> unavailable = if (task.goalCount > 0) {
-                                "Прогресс: ${task.progress} из ${task.goalCount}. Выполни игровые действия из описания задания."
-                            } else {
-                                "Это задание выполняется во время игры. Следуй его описанию."
-                            }
-                        }
-                    },
-                )
-            }
+    Column(
+        modifier = modifier.fillMaxSize()
+            .verticalScroll(rememberScrollState()).padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ScreenTitle(text = "Задания")
+        Text("Награды получены: ${tasks.count { it.rewarded }}/${tasks.size}. Новые задания — каждый понедельник.", style = nunito(14), color = FinikColor.Text44)
+        dev.bober.finik.core.designsystem.component.OutlineButton(
+            text = "Повторить сложные темы", onClick = onReview,
+            enabled = actionsEnabled, modifier = Modifier.fillMaxWidth(),
+        )
+        tasks.forEach { task ->
+            TaskCard(task = task, actionsEnabled = actionsEnabled, onClick = { onTask(task) })
         }
-
-        if (quizTaskId != null) {
-            val task = tasks.firstOrNull { it.id == quizTaskId }
-            if (task != null) {
-            QuizSheet(
-                questions = quiz,
-                onClose = { quizTaskId = null },
-                onComplete = { correct ->
-                    onComplete(task.id, correct, task.reward)
-                    quizTaskId = null
-                },
-            )
-            }
-        }
-        scenarioId?.let { id ->
-            val task = tasks.firstOrNull { it.id == id }
-            val scenario = scenarios.firstOrNull { it.id == id }
-            if (scenario != null && task != null) {
-                ScenarioSheet(
-                    scenario = scenario,
-                    onClose = { scenarioId = null },
-                    onComplete = { correct ->
-                        onComplete(task.id, correct, task.reward)
-                        scenarioId = null
-                    },
-                )
-            }
-        }
-        unavailable?.let { message ->
-            FinikConfirmSheet(
-                title = "Задание недоступно",
-                body = message,
-                confirmText = "Понятно",
-                onConfirm = { unavailable = null },
-                onDismiss = { unavailable = null },
-            )
-        }
+        Text("Игровые задания выполняются через план, покупки, уход и копилку. После выполнения открой задание и забери награду.", style = nunito(13), color = FinikColor.Text50)
     }
 }
 
 @Composable
-private fun TaskCard(task: TaskItem, onClick: () -> Unit) {
+private fun TaskCard(task: TaskItem, actionsEnabled: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     Row(
         modifier = Modifier
@@ -155,8 +90,8 @@ private fun TaskCard(task: TaskItem, onClick: () -> Unit) {
             .clip(shape)
             .background(if (task.done) FinikColor.GreenSelected else FinikColor.Surface)
             .border(1.dp, if (task.done) FinikColor.GreenBorderDone else FinikColor.Border, shape)
-            .clickable(enabled = !task.done, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = "${task.title}. ${if (task.done) "Выполнено" else task.subtitle}. Награда ${task.reward} монет" }
+            .clickable(enabled = actionsEnabled && !task.rewarded, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "${task.title}. ${if (task.rewarded) "Награда получена" else if (task.done) "Забрать награду" else task.subtitle}. Награда ${task.reward} монет" }
             .padding(13.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -186,7 +121,7 @@ private fun TaskCard(task: TaskItem, onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(text = task.title, style = nunito(15, lineHeight = 1.25), color = FinikColor.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
-                text = if (task.done) "Готово" else task.subtitle,
+                text = if (task.rewarded) "Награда получена" else if (task.done) "Забрать награду" else task.subtitle,
                 style = nunito(13, FontWeight.SemiBold),
                 color = FinikColor.Text50,
                 maxLines = 1,

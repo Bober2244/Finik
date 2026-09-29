@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,9 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +37,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import dev.bober.finik.core.designsystem.component.PrimaryButton
+import dev.bober.finik.core.designsystem.component.OutlineButton
 import dev.bober.finik.core.designsystem.component.FinikIcons
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.FinikTheme
@@ -52,13 +52,16 @@ import dev.bober.finik.core.pet.PetFigureSpec
 @Composable
 internal fun WelcomeScreen(
     onStart: () -> Unit,
+    onDemo: (Boolean) -> Unit = {},
+    actionsEnabled: Boolean = true,
+    canChangeServer: Boolean = false,
+    onOpenServer: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var demoChoice by remember { mutableStateOf(false) }
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
-            .radialGlow(FinikColor.GreenGlow, FinikColor.Background)
             .systemBarsPadding(),
     ) {
         val compact = maxHeight < 680.dp
@@ -123,12 +126,23 @@ internal fun WelcomeScreen(
                 PrimaryButton(
                     text = "Создать сову",
                     onClick = onStart,
+                    enabled = actionsEnabled,
                     modifier = Modifier.fillMaxWidth(),
                     icon = FinikIcons.Pet,
                 )
+                OutlineButton(text = "Демо для экспертов", onClick = { demoChoice = true }, enabled = actionsEnabled, modifier = Modifier.fillMaxWidth())
+                Text(text = "Для игры нужно подключение к интернету.", style = nunito(12), color = FinikColor.Text43)
+                if (canChangeServer) OutlineButton(text = "Адрес сервера", onClick = onOpenServer, modifier = Modifier.fillMaxWidth())
             }
         }
     }
+    if (demoChoice) AlertDialog(
+        onDismissRequest = { demoChoice = false },
+        title = { Text("Как начать демо?") },
+        text = { Text("Отдельный профиль позволяет ускорять дни и недели. Обычная игра не изменится.") },
+        confirmButton = { TextButton(onClick = { demoChoice = false; onDemo(true) }) { Text("Готовый профиль") } },
+        dismissButton = { TextButton(onClick = { demoChoice = false; onDemo(false) }) { Text("С нуля") } },
+    )
 }
 
 @Composable
@@ -146,17 +160,6 @@ private fun RowScope.StatTile(label: String, icon: ImageVector, valueColor: Colo
         Icon(imageVector = icon, contentDescription = null, tint = valueColor, modifier = Modifier.size(24.dp))
         Text(text = label, style = nunito(12, FontWeight.ExtraBold), color = FinikColor.Ink)
     }
-}
-
-/** `radial-gradient(120% 60% at 50% 6%, зелёное свечение 0%, фон 68%)`. */
-private fun Modifier.radialGlow(glow: Color, background: Color): Modifier = drawBehind {
-    drawRect(
-        brush = Brush.radialGradient(
-            colorStops = arrayOf(0f to glow, 0.68f to background),
-            center = Offset(size.width / 2f, size.height * 0.06f),
-            radius = size.height * 0.6f,
-        ),
-    )
 }
 
 @Preview(showBackground = true, widthDp = 412, heightDp = 828)

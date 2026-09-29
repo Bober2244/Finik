@@ -67,6 +67,7 @@ internal fun ShopScreen(
     items: List<ShopItem> = SampleData.shop,
     plan: WeekPlan = SampleData.plan,
     planConfirmed: Boolean = true,
+    actionsEnabled: Boolean = true,
     onCheck: (String) -> BuyCheck? = { null },
     onBuy: (String) -> Unit = {},
 ) {
@@ -80,7 +81,6 @@ internal fun ShopScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .bg(FinikColor.Background)
                 .verticalScroll(rememberScrollState(), enabled = !petInteractionActive)
                 .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -111,6 +111,7 @@ internal fun ShopScreen(
                 PetCustomization(
                     pet = pet,
                     onSave = onCustomize,
+                    actionsEnabled = actionsEnabled,
                     onPetInteractionChange = { petInteractionActive = it },
                 )
             } else BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -126,6 +127,7 @@ internal fun ShopScreen(
                                     item = item,
                                     left = plan.entry(item.category).left,
                                     planConfirmed = planConfirmed,
+                                    actionsEnabled = actionsEnabled,
                                     onClick = {
                                         val check = onCheck(item.id)
                                         if (check == null || check.allowed) pendingId = item.id
@@ -167,8 +169,8 @@ internal fun ShopScreen(
 }
 
 @Composable
-private fun RowScope.ShopCard(item: ShopItem, left: Int, planConfirmed: Boolean, onClick: () -> Unit) {
-    val canBuy = planConfirmed && left >= item.cost
+private fun RowScope.ShopCard(item: ShopItem, left: Int, planConfirmed: Boolean, actionsEnabled: Boolean, onClick: () -> Unit) {
+    val canBuy = planConfirmed && item.affordable && !item.owned
     FinikCard(
         modifier = Modifier.weight(1f).fillMaxHeight(),
         radius = 16.dp,
@@ -235,11 +237,13 @@ private fun RowScope.ShopCard(item: ShopItem, left: Int, planConfirmed: Boolean,
         Spacer(modifier = Modifier.weight(1f))
         PrimaryButton(
             text = when {
+                item.owned -> if (item.equipped) "Надето" else "Куплено"
                 !planConfirmed -> "Нужен план"
                 canBuy -> "Купить"
                 else -> "Мало монет"
             },
             onClick = onClick,
+            enabled = actionsEnabled && canBuy,
             modifier = Modifier.fillMaxWidth(),
             height = 48.dp,
             radius = 12.dp,

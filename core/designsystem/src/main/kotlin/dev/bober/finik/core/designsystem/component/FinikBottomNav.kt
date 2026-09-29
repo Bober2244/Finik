@@ -62,7 +62,7 @@ fun FinikBottomNav(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(FinikColor.Background)
+            .background(FinikColor.Background.copy(alpha = .94f))
             .navigationBarsPadding(),
     ) {
         HorizontalDivider(color = FinikColor.Track, thickness = 1.dp)

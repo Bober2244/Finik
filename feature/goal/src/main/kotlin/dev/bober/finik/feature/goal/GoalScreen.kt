@@ -69,6 +69,8 @@ internal fun GoalScreen(
     averageWeeklySave: Double? = null,
     weeksLeft: Int? = null,
     weeksDone: Int = 0,
+    actionsEnabled: Boolean = true,
+    planConfirmed: Boolean = true,
     onDeposit: (Int) -> Unit = {},
     onSelectGoal: (String) -> Unit = {},
     onWithdraw: (Int) -> Unit = {},
@@ -84,7 +86,6 @@ internal fun GoalScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(FinikColor.Background)
                 .verticalScroll(rememberScrollState())
                 .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -104,7 +105,7 @@ internal fun GoalScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (selected) FinikColor.GreenSelected else FinikColor.Surface)
                             .border(2.dp, if (selected) FinikColor.Green else FinikColor.Border, RoundedCornerShape(12.dp))
-                            .clickable(role = Role.Button) { onSelectGoal(option.id) }
+                            .clickable(enabled = actionsEnabled, role = Role.Button) { onSelectGoal(option.id) }
                             .semantics {
                                 contentDescription = "${option.title}, цель ${option.target} монет${if (selected) ", выбрана" else ""}"
                             }
@@ -114,7 +115,7 @@ internal fun GoalScreen(
                     ) {
                         Icon(FinikIcons.Goal, contentDescription = null, modifier = Modifier.size(20.dp), tint = if (selected) FinikColor.Green else FinikColor.Text50)
                         Text(text = option.title, style = nunito(14, FontWeight.SemiBold, lineHeight = 1.25), color = FinikColor.Ink, maxLines = 2)
-                        Text(text = "${option.target} монет", style = nunito(12.5), color = FinikColor.Text50)
+                        Text(text = "${option.saved} / ${option.target} монет", style = nunito(12.5), color = FinikColor.Text50)
                     }
                 }
             }
@@ -125,7 +126,7 @@ internal fun GoalScreen(
                     modifier = Modifier.weight(1f),
                     textStyle = nunito(15),
                     borderColor = FinikColor.GreenBorderBtn,
-                    enabled = availableToDeposit >= 5,
+                    enabled = actionsEnabled && planConfirmed && availableToDeposit >= 5,
                     icon = FinikIcons.Add,
                 )
                 PrimaryButton(
@@ -135,14 +136,15 @@ internal fun GoalScreen(
                     height = 52.dp,
                     radius = 14.dp,
                     textStyle = nunito(15),
-                    enabled = availableToDeposit > 0,
+                    enabled = actionsEnabled && planConfirmed && availableToDeposit > 0,
                     icon = FinikIcons.Goal,
                 )
             }
-            Text(text = "Можно отложить: $availableToDeposit монет", style = nunito(13), color = FinikColor.Text46)
+            Text(text = if (planConfirmed) "Из статьи «Копилка»: $availableToDeposit монет. Остаток в конце недели перейдёт в выбранную цель с бонусом 5%." else "Подтверди план, чтобы пополнять цель.", style = nunito(13), color = FinikColor.Text46)
             if (goal.saved >= withdrawAmount) {
                 OutlineButton(
                     text = "Снять $withdrawAmount",
+                    enabled = actionsEnabled,
                     onClick = { withdrawOpen = true },
                     modifier = Modifier.fillMaxWidth(),
                     icon = FinikIcons.Remove,
@@ -153,7 +155,7 @@ internal fun GoalScreen(
         if (withdrawOpen) {
             FinikConfirmSheet(
                 title = "Снять $withdrawAmount из копилки?",
-                body = "Накопления станут $savedAfterWithdrawal монет. " +
+                body = "$withdrawAmount монет поступят в бюджет развлечений. Накопления станут $savedAfterWithdrawal монет. " +
                     if (weeksAfterWithdrawal != null) "При прежнем темпе до цели около $weeksAfterWithdrawal периодов."
                     else "Пока нет фактических пополнений, поэтому срок неизвестен.",
                 confirmText = "Снять",

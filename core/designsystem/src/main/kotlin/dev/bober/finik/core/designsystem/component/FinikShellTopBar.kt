@@ -50,7 +50,7 @@ fun FinikShellTopBar(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .background(FinikColor.Background)
+            .background(FinikColor.Background.copy(alpha = .80f))
             .statusBarsPadding()
             .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 8.dp),
     ) {

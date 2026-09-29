@@ -45,7 +45,6 @@ internal fun BadgesScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .systemBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),

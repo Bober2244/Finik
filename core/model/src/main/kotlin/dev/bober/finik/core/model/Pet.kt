@@ -1,6 +1,6 @@
 package dev.bober.finik.core.model
 
-/** The owl is the only pet; the backend still identifies it by its legacy API name. */
+/** The owl is shared by the app and server. */
 enum class PetSpecies(
     val title: String,
     val description: String,
@@ -8,7 +8,7 @@ enum class PetSpecies(
     val bonus: String,
     val legacyApiName: String,
 ) {
-    OWL("Сова", "Спокойный пернатый исследователь", "любит заботу", "+опыт за уход", "CACTUS"),
+    OWL("Сова", "Спокойный пернатый исследователь", "любит заботу", "+опыт за уход", "OWL"),
     ;
 
     companion object {

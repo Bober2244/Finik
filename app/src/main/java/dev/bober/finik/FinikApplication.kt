@@ -13,7 +13,15 @@ class FinikApplication : Application() {
         startKoin {
             androidContext(this@FinikApplication)
             modules(
-                module { single { NetworkConfig(BuildConfig.API_BASE_URL) } },
+                module {
+                    single {
+                        NetworkConfig(
+                            BuildConfig.API_BASE_URL,
+                            allowInsecure = BuildConfig.DEBUG,
+                            canChangeServer = BuildConfig.DEBUG,
+                        )
+                    }
+                },
                 dataModule,
             )
         }

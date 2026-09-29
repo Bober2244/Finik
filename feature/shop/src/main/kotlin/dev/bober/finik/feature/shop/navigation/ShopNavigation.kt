@@ -25,6 +25,7 @@ fun NavGraphBuilder.shopScreen(contentPadding: PaddingValues) {
     composable<ShopRoute> {
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
+        val busy by vm.busy.collectAsStateWithLifecycle()
         ShopScreen(
             modifier = Modifier.padding(contentPadding),
             items = state.shop,
@@ -32,6 +33,7 @@ fun NavGraphBuilder.shopScreen(contentPadding: PaddingValues) {
             onCustomize = vm::customizeAppearance,
             plan = state.plan,
             planConfirmed = state.planConfirmed,
+            actionsEnabled = state.online && !busy,
             onCheck = vm.repo::buyCheck,
             onBuy = vm::buy,
         )

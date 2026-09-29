@@ -15,7 +15,7 @@ if (signingValues.any { it != null } && signingValues.any { it.isNullOrBlank() }
     throw GradleException("Set all four FINIK_KEYSTORE_* / FINIK_KEY_* variables for a signed release")
 }
 val hasReleaseSigning = signingValues.all { !it.isNullOrBlank() }
-val debugApiBaseUrl = providers.environmentVariable("FINIK_DEBUG_API_BASE_URL").orElse("").get()
+val debugApiBaseUrl = providers.environmentVariable("FINIK_DEBUG_API_BASE_URL").orElse("http://192.168.1.43:8000").get()
 val releaseApiBaseUrl = providers.environmentVariable("FINIK_API_BASE_URL").orElse("").get()
 if (releaseApiBaseUrl.isNotBlank() && !releaseApiBaseUrl.startsWith("https://")) {
     throw GradleException("FINIK_API_BASE_URL must use HTTPS in release builds")

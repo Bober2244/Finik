@@ -24,6 +24,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,12 +65,18 @@ internal fun ProfileScreen(
     weeksDone: Int = SampleData.WEEKS_DONE,
     income: Int = SampleData.WEEKLY_INCOME,
     motionOn: Boolean = true,
+    actionsEnabled: Boolean = true,
+    demoMode: Boolean = false,
+    onDemo: (Boolean) -> Unit = {},
+    canChangeServer: Boolean = false,
+    onOpenServer: () -> Unit = {},
     badgesDone: Int = SampleData.badges.count { it.isDone },
     badgesTotal: Int = SampleData.badges.size,
     onIncome: (Int) -> Unit = {},
     onMotion: (Boolean) -> Unit = {},
 ) {
     var gateOpen by rememberSaveable { mutableStateOf(false) }
+    var demoChoice by rememberSaveable { mutableStateOf(false) }
     var gateA by rememberSaveable { mutableIntStateOf((6..12).random()) }
     var gateB by rememberSaveable { mutableIntStateOf((5..11).random()) }
     var correctFirst by rememberSaveable { mutableStateOf(listOf(true, false).random()) }
@@ -78,7 +86,6 @@ internal fun ProfileScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .systemBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
@@ -108,9 +115,10 @@ internal fun ProfileScreen(
             Text(text = "Доход в неделю", style = nunito(14.5), color = FinikColor.Ink)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SampleData.incomeOptions.forEach { (value, label) ->
-                    IncomeOption(value = value, label = label, selected = income == value, onClick = { onIncome(value) })
+                    IncomeOption(value = value, label = label, selected = income == value, enabled = actionsEnabled, onClick = { onIncome(value) })
                 }
             }
+            Text("Изменение дохода применяется со следующего понедельника. Текущий бюджет сохраняется.", style = nunito(13), color = FinikColor.Text46)
         }
 
         SettingsRow(
@@ -138,7 +146,16 @@ internal fun ProfileScreen(
             title = "Раздел для взрослых",
             onClick = { gateOpen = true },
         )
+        if (!demoMode) OutlineButton(text = "Открыть демо для экспертов", enabled = actionsEnabled, onClick = { demoChoice = true }, modifier = Modifier.fillMaxWidth())
+        if (canChangeServer) OutlineButton(text = "Адрес сервера", onClick = onOpenServer, modifier = Modifier.fillMaxWidth())
     }
+    if (demoChoice) AlertDialog(
+        onDismissRequest = { demoChoice = false },
+        title = { Text("Как начать демо?") },
+        text = { Text("Демо использует отдельный профиль и позволяет ускорять время. Предыдущее демопрохождение будет заменено.") },
+        confirmButton = { TextButton(onClick = { demoChoice = false; onDemo(true) }) { Text("Готовый профиль") } },
+        dismissButton = { TextButton(onClick = { demoChoice = false; onDemo(false) }) { Text("С нуля") } },
+    )
     if (gateOpen) {
         Dialog(onDismissRequest = { gateOpen = false }) {
             FinikCard(gap = 12.dp) {
@@ -210,7 +227,7 @@ private fun RowScope.StatTile(
 }
 
 @Composable
-private fun RowScope.IncomeOption(value: Int, label: String, selected: Boolean, onClick: () -> Unit) {
+private fun RowScope.IncomeOption(value: Int, label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Column(
         modifier = Modifier
@@ -219,7 +236,7 @@ private fun RowScope.IncomeOption(value: Int, label: String, selected: Boolean, 
             .clip(shape)
             .background(if (selected) FinikColor.GreenSelected else FinikColor.Surface)
             .border(2.dp, if (selected) FinikColor.Green else FinikColor.Border, shape)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {

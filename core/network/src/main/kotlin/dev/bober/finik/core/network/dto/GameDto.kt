@@ -16,6 +16,12 @@ data class StateOut(
     val lastPurchaseNote: String = "",
     val lastPurchaseAmount: Int = 0,
     val ownedCosmetics: List<String> = emptyList(),
+    val goals: List<GoalOut> = emptyList(),
+    val timezone: String = "UTC",
+    val mode: String = "normal",
+    val serverNow: String = "",
+    val gameNow: String = "",
+    val canAdvanceTime: Boolean = false,
 )
 
 @Serializable
@@ -33,6 +39,7 @@ data class PetOut(
     val lookVariant: Int = 0,
     val equippedPot: String = "",
     val equippedAccessory: String = "",
+    val accessories: List<String> = emptyList(),
 )
 
 @Serializable
@@ -50,6 +57,8 @@ data class WeekOut(
     val overrun: Int = 0,
     val planConfirmed: Boolean = false,
     val entries: List<WeekEntryOut> = emptyList(),
+    val startsAt: String? = null,
+    val endsAt: String? = null,
 )
 
 @Serializable
@@ -100,6 +109,7 @@ data class PetIn(
     val weeklyIncome: Int,
     val goalSlug: String? = null,
     val lookVariant: Int = 0,
+    val accessories: List<String> = emptyList(),
 )
 
 @Serializable
@@ -107,6 +117,7 @@ data class CustomizeIn(
     val pot: String? = null,
     val accessory: String? = null,
     val lookVariant: Int? = null,
+    val accessories: List<String>? = null,
 )
 
 @Serializable
@@ -211,6 +222,7 @@ data class TaskOut(
     val goal: Int = 0,
     val done: Boolean = false,
     val rewarded: Boolean = false,
+    val activity: String = "QUIZ",
 )
 
 @Serializable
@@ -219,12 +231,15 @@ data class QuestionOut(
     val order: Int = 0,
     val question: String,
     val options: List<String> = emptyList(),
+    val activity: String = "CHOICE",
+    val scene: String = "",
 )
 
 @Serializable
 data class AnswerIn(
     val questionSlug: String,
-    val answerIndex: Int,
+    val answerIndex: Int? = null,
+    val answerValue: Int? = null,
 )
 
 @Serializable
@@ -241,7 +256,7 @@ data class HistoryOut(
     val weeks: List<HistoryWeekOut> = emptyList(),
     val lastReport: List<ReportRowOut> = emptyList(),
     val lastSummary: String = "",
-    val lastStory: String = "",
+    val lastStory: String? = null,
     val lastIncome: Int = 0,
     val lastPurchaseNote: String = "",
 )
@@ -294,3 +309,6 @@ data class ChoiceOut(
     val spent: Map<String, Int> = emptyMap(),
     val state: StateOut,
 )
+
+@Serializable
+data class DemoAdvanceIn(val days: Int? = null, val toWeekEnd: Boolean = false)

@@ -3,7 +3,7 @@ package dev.bober.finik.core.data
 import java.util.UUID
 
 class DeviceIdProvider(
-    private val session: SessionStore,
+    private val session: PlayerSession,
 ) {
     suspend fun get(): String {
         session.deviceId()?.takeIf { it.startsWith("finik-") }?.let { return it }

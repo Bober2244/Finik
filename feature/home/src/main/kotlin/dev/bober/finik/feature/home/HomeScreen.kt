@@ -35,7 +35,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +46,6 @@ import dev.bober.finik.core.designsystem.component.FinikCard
 import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
 import dev.bober.finik.core.designsystem.component.FinikIcons
 import dev.bober.finik.core.designsystem.component.FinikProgressBar
-import dev.bober.finik.core.designsystem.component.GradientCard
 import dev.bober.finik.core.designsystem.component.OutlineButton
 import dev.bober.finik.core.designsystem.component.PrimaryButton
 import dev.bober.finik.core.designsystem.component.SegmentedBar
@@ -64,6 +62,8 @@ import dev.bober.finik.core.model.SampleData
 import dev.bober.finik.core.model.SpendCategory
 import dev.bober.finik.core.model.StreakDay
 import dev.bober.finik.core.model.WeekPlan
+import dev.bober.finik.core.model.TodayEvent
+import dev.bober.finik.core.model.WordOfDay
 import dev.bober.finik.core.pet.PetAnimation
 import dev.bober.finik.core.pet.PetFigure
 import dev.bober.finik.core.pet.PetFigureSpec
@@ -82,6 +82,15 @@ internal fun HomeScreen(
     care: List<CareAction> = SampleData.careActions,
     streak: List<StreakDay> = SampleData.streakDays,
     planConfirmed: Boolean = true,
+    actionsEnabled: Boolean = true,
+    demoMode: Boolean = false,
+    canAdvanceTime: Boolean = false,
+    weekLabel: String = "Календарная неделя",
+    todayEvent: TodayEvent? = null,
+    wordOfDay: WordOfDay? = null,
+    onChooseEvent: (String, String) -> Unit = { _, _ -> },
+    onAdvanceDay: () -> Unit = {},
+    onOpenStories: () -> Unit = {},
     goalTitle: String = SampleData.goal.title,
     goalSaved: Int = SampleData.goal.saved,
     goalTarget: Int = SampleData.goal.target,
@@ -98,7 +107,6 @@ internal fun HomeScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .verticalScroll(rememberScrollState(), enabled = !petInteractionActive)
             .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -110,7 +118,24 @@ internal fun HomeScreen(
             actionEventId = actionEventId,
             onPetInteractionChange = { petInteractionActive = it },
         )
-        CareRow(actions = care, plan = plan, planConfirmed = planConfirmed, onCare = onCare)
+        Text(text = weekLabel, style = nunito(13), color = FinikColor.Text46)
+        CareRow(actions = care, plan = plan, planConfirmed = planConfirmed, actionsEnabled = actionsEnabled, onCare = onCare)
+        todayEvent?.let { event ->
+            FinikCard(gap = 8.dp) {
+                Text(text = event.title, style = nunito(16, FontWeight.ExtraBold), color = FinikColor.Ink)
+                Text(text = event.text, style = nunito(14), color = FinikColor.Text46)
+                if (event.chosen == null) event.options.forEach { option ->
+                    OutlineButton(text = option.label, onClick = { onChooseEvent(event.id, option.key) }, enabled = actionsEnabled, modifier = Modifier.fillMaxWidth())
+                } else Text(text = "Решение принято", style = nunito(13), color = FinikColor.Green)
+            }
+        }
+        wordOfDay?.let { word ->
+            FinikCard(gap = 5.dp) {
+                Text(text = "Слово дня: ${word.word}", style = nunito(15, FontWeight.Bold), color = FinikColor.Ink)
+                Text(text = word.meaning, style = nunito(13), color = FinikColor.Text46)
+            }
+        }
+        OutlineButton(text = "Поговорить с совой", onClick = onOpenStories, modifier = Modifier.fillMaxWidth())
         SnapshotRow(
             saved = goalSaved,
             target = goalTarget,
@@ -121,14 +146,16 @@ internal fun HomeScreen(
         )
         PlanCard(plan = plan, onEdit = onOpenPlan)
         StreakCard(days = streak)
-        if (planConfirmed) {
+        if (demoMode && canAdvanceTime) {
+            OutlineButton(text = "Демо: следующий день", onClick = onAdvanceDay, enabled = actionsEnabled, modifier = Modifier.fillMaxWidth())
             PrimaryButton(
-                text = "Завершить неделю",
+                text = "Демо: завершить неделю",
+                enabled = actionsEnabled,
                 onClick = { confirmClose = true },
                 modifier = Modifier.fillMaxWidth(),
                 icon = FinikIcons.TaskWeek,
             )
-        } else {
+        } else if (!planConfirmed) {
             PrimaryButton(
                 text = if (plan.freeCoins > 0) "Распределить ${plan.freeCoins} монет" else "Подтвердить план",
                 onClick = onOpenPlan,
@@ -139,8 +166,8 @@ internal fun HomeScreen(
     }
     if (confirmClose) {
         FinikConfirmSheet(
-            title = "Завершить неделю?",
-            body = "Покажем отчёт и начнём новую неделю.",
+            title = "Перейти к следующей неделе в демо?",
+            body = "Время демопрофиля ускорится. Сервер рассчитает расходы, накопления и новый доход. Обычная игра не изменится.",
             confirmText = "Завершить",
             onConfirm = {
                 confirmClose = false
@@ -159,11 +186,8 @@ private fun HeroCard(
     actionEventId: Long,
     onPetInteractionChange: (Boolean) -> Unit,
 ) {
-    GradientCard(
-        brush = Brush.verticalGradient(listOf(FinikColor.GreenHeroTop, FinikColor.SurfaceCream)),
-        modifier = Modifier.fillMaxWidth(),
-        radius = 24.dp,
-        gap = 0.dp,
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(14.dp),
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val petSize = (maxWidth * .76f).coerceAtMost(250.dp)
@@ -248,6 +272,7 @@ private fun CareRow(
     actions: List<CareAction>,
     plan: WeekPlan,
     planConfirmed: Boolean,
+    actionsEnabled: Boolean,
     onCare: (SpendCategory) -> Unit,
 ) {
     if (LocalDensity.current.fontScale > 1.2f) {
@@ -257,7 +282,7 @@ private fun CareRow(
                 CareButton(
                     action = action,
                     left = left,
-                    enabled = planConfirmed && left >= action.cost,
+                    enabled = actionsEnabled && planConfirmed && (left >= action.cost || (action.category != SpendCategory.PLAY && plan.entry(SpendCategory.SAVE).left >= action.cost)),
                     horizontal = true,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { onCare(action.category) },
@@ -274,7 +299,7 @@ private fun CareRow(
                 CareButton(
                     action = action,
                     left = left,
-                    enabled = planConfirmed && left >= action.cost,
+                    enabled = actionsEnabled && planConfirmed && (left >= action.cost || (action.category != SpendCategory.PLAY && plan.entry(SpendCategory.SAVE).left >= action.cost)),
                     horizontal = false,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     onClick = { onCare(action.category) },
@@ -334,7 +359,7 @@ private fun CareButton(
 private fun CareButtonText(action: CareAction, left: Int, enabled: Boolean) {
     Text(text = action.label, style = nunito(14), color = FinikColor.Ink)
     Text(
-        text = "−${action.cost} мон. · $left осталось",
+        text = if (enabled && left < action.cost) "−${action.cost} мон. из копилки" else "−${action.cost} мон. · $left осталось",
         style = nunito(11.5),
         color = if (enabled) FinikColor.Text48 else FinikColor.RedCost,
         textAlign = TextAlign.Center,
@@ -418,7 +443,7 @@ private fun PlanCard(plan: WeekPlan, onEdit: () -> Unit) {
         ) {
             Text(text = "План недели", style = nunito(14.5), color = FinikColor.Ink)
             OutlineButton(
-                text = "Изменить",
+                text = "Открыть",
                 onClick = onEdit,
                 height = 48.dp,
                 icon = Icons.Rounded.Edit,
@@ -460,7 +485,7 @@ private fun StreakCard(days: List<StreakDay>) {
     val done = days.count { it.done }
     FinikCard(gap = 10.dp) {
         TitleRow(
-            title = "Каждый день",
+            title = "Игровые дни",
             trailing = "$done / ${days.size} · +5 монет",
             modifier = Modifier.fillMaxWidth(),
         )

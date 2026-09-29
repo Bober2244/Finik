@@ -7,31 +7,42 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -43,6 +54,8 @@ import dev.bober.finik.core.data.ToastEvent
 import dev.bober.finik.core.designsystem.component.FinikBottomNav
 import dev.bober.finik.core.designsystem.component.FinikShellTopBar
 import dev.bober.finik.core.designsystem.component.FinikToast
+import dev.bober.finik.core.designsystem.component.FinikWorldBackground
+import dev.bober.finik.core.designsystem.component.ServerConnectionDialog
 import dev.bober.finik.core.designsystem.theme.FinikColor
 import dev.bober.finik.core.designsystem.theme.nunito
 import dev.bober.finik.core.navigation.topLevelNavOptions
@@ -71,10 +84,22 @@ fun FinikApp(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val loadProblem by vm.loadProblem.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
+    val serverAddress by vm.serverAddress.collectAsStateWithLifecycle()
+    var serverDialog by remember { mutableStateOf(false) }
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     var toast by remember { mutableStateOf<ToastEvent?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val readyForRefresh by rememberUpdatedState(state.ready && !busy)
+    DisposableEffect(lifecycleOwner, vm) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && readyForRefresh) vm.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(Unit) {
         vm.toasts.collect { event ->
@@ -99,9 +124,7 @@ fun FinikApp(
     val currentTab = TopLevelDestination.entries.firstOrNull { destination ->
         currentDestination?.hierarchy?.any { it.hasRoute(destination.route) } == true
     }
-    // Keep both Scaffold slots measured while a nested page slides over the shell.
-    // Moving the bars by the same distance avoids a layout jump or overlapping headers.
-    val shellAvailable = state.ready && state.onboarded && loadProblem == null
+    val shellAvailable = state.ready && state.onboarded
     val shellVisible = shellAvailable && currentTab != null
     val shellOffset by animateFloatAsState(
         targetValue = if (shellVisible) 0f else -1f,
@@ -112,16 +135,28 @@ fun FinikApp(
         .graphicsLayer { translationX = size.width * shellOffset }
         .then(if (shellVisible) Modifier else Modifier.clearAndSetSemantics { })
 
+    if (serverDialog && vm.canChangeServer) {
+        ServerConnectionDialog(
+            currentAddress = serverAddress,
+            busy = busy,
+            onConnect = { address, callback -> vm.connectToServer(address, callback) },
+            onDismiss = { serverDialog = false },
+        )
+    }
+
     CompositionLocalProvider(LocalPetAnimationEnabled provides state.motionOn) {
     Box(modifier = modifier.fillMaxSize()) {
+        FinikWorldBackground(modifier = Modifier.matchParentSize())
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            containerColor = FinikColor.Background,
+            containerColor = Color.Transparent,
+            contentColor = FinikColor.Ink,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
-                if (shellAvailable) {
+                Column(modifier = Modifier.statusBarsPadding()) {
+                if (shellVisible) {
                     FinikShellTopBar(
-                        coins = state.spendableFree,
+                        coins = state.plan.freeCoins,
                         stageName = state.pet.stage.name,
                         xpPercent = state.pet.xp,
                         onStageClick = { navController.navigateToGrowth() },
@@ -131,9 +166,29 @@ fun FinikApp(
                         enabled = shellVisible,
                     )
                 }
+                if (state.ready && (!state.online || state.demoMode || loadProblem != null)) {
+                    Surface(color = FinikColor.CoinChip) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f).padding(vertical = 8.dp)) {
+                                if (state.demoMode) Text("Деморежим · отдельный профиль", style = nunito(13))
+                                if (!state.online) Text("Нет связи · доступен только просмотр", style = nunito(13))
+                                loadProblem?.let { Text(it, style = nunito(12)) }
+                            }
+                            if (state.demoMode) TextButton(onClick = { vm.leaveDemo() }, enabled = !busy) { Text("Выйти") }
+                            if (!state.online || loadProblem != null) TextButton(onClick = { vm.refresh() }, enabled = !busy) { Text("Повторить") }
+                        }
+                    }
+                }
+                if (vm.canChangeServer && !state.online) {
+                    TextButton(onClick = { serverDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Изменить адрес сервера")
+                    }
+                }
+                if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = FinikColor.Green)
+                }
             },
             bottomBar = {
-                if (shellAvailable) {
+                if (shellVisible) {
                     FinikBottomNav(
                         items = TopLevelDestination.entries.map { it.toNavItem() },
                         selectedId = currentTab?.name,
@@ -146,11 +201,10 @@ fun FinikApp(
                 }
             },
         ) { innerPadding ->
-            if (loadProblem != null) {
+            if (loadProblem != null && !state.ready) {
                 SaveRecoveryScreen(
                     problem = loadProblem ?: "Не удалось открыть сохранение.",
                     onRetry = { vm.retryLoad() },
-                    onDiscard = { vm.resetProfile(localOnly = true) },
                     modifier = Modifier.padding(innerPadding),
                 )
             } else if (state.ready) {
@@ -159,7 +213,7 @@ fun FinikApp(
                         navController = navController,
                         startOnboarding = !state.onboarded,
                         topLevelPadding = innerPadding,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = if (currentTab == null) Modifier.fillMaxSize().padding(innerPadding).consumeWindowInsets(innerPadding) else Modifier.fillMaxSize(),
                     )
                 }
             } else {
@@ -191,23 +245,8 @@ fun FinikApp(
 private fun SaveRecoveryScreen(
     problem: String,
     onRetry: () -> Unit,
-    onDiscard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var confirmDiscard by remember { mutableStateOf(false) }
-    if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            title = { Text("Удалить сохранение на устройстве?") },
-            text = { Text("Игровой прогресс на этом устройстве будет удалён. Это действие нельзя отменить.") },
-            confirmButton = {
-                TextButton(onClick = { confirmDiscard = false; onDiscard() }) { Text("Удалить") }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDiscard = false }) { Text("Отмена") }
-            },
-        )
-    }
     Column(
         modifier = modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -216,9 +255,6 @@ private fun SaveRecoveryScreen(
         Text(text = "Не удалось открыть профиль", style = nunito(24), color = FinikColor.Ink)
         Text(text = problem, style = nunito(16), color = FinikColor.Ink, modifier = Modifier.padding(top = 12.dp, bottom = 24.dp))
         Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Повторить") }
-        OutlinedButton(onClick = { confirmDiscard = true }, modifier = Modifier.fillMaxWidth()) {
-            Text("Удалить локальное сохранение")
-        }
     }
 }
 

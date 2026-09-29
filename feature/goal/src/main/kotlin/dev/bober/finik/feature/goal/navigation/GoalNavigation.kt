@@ -26,6 +26,7 @@ fun NavGraphBuilder.goalScreen(contentPadding: PaddingValues) {
     composable<GoalRoute> {
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
+        val busy by vm.busy.collectAsStateWithLifecycle()
         GoalScreen(
             modifier = Modifier.padding(contentPadding),
             goal = state.selectedGoal,
@@ -36,6 +37,8 @@ fun NavGraphBuilder.goalScreen(contentPadding: PaddingValues) {
             averageWeeklySave = GameEngine.averageActualWeeklyContribution(state, state.selectedGoal.id),
             weeksLeft = GameEngine.weeksToGoal(state, state.selectedGoal),
             weeksDone = state.weeksDone,
+            actionsEnabled = state.online && !busy,
+            planConfirmed = state.planConfirmed,
             onDeposit = vm::deposit,
             onSelectGoal = vm::selectGoal,
             onWithdraw = vm::withdraw,

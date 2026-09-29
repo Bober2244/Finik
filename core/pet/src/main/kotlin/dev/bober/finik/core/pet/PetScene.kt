@@ -212,8 +212,7 @@ private fun PetSceneSession(
                 autoCenterContent = false,
                 frameRatePolicy = FrameRatePolicy.OnDemand(maxFps = 30),
                 surfaceMirrorer = surfaceMirrorer,
-                onFrame = { frameTimeNanos ->
-                    controller.onFrame(frameTimeNanos)
+                onFrame = {
                     if (!firstFrameRendered) {
                         firstFrameRendered = true
                     }
@@ -400,8 +399,10 @@ private class PetSceneController(private val asset: PetAsset, private val engine
         previousAction = null
         previousMood = null
         appliedColor = null
-        // The GLB ships with all four meshes visible. Hide them before its first frame.
-        node.renderableNodes.filter { it.name.orEmpty().startsWith("Accessory_") }
+        // Optional meshes are present in the GLB but must not appear in the initial pose.
+        node.renderableNodes.filter {
+            it.name.orEmpty().startsWith("Accessory_") || it.name.orEmpty().startsWith("Food_")
+        }
             .forEach { it.isVisible = false }
     }
 
@@ -455,6 +456,10 @@ private class PetSceneController(private val asset: PetAsset, private val engine
     }
 
     private fun play(request: PetAnimation, loop: Boolean, frozen: Boolean = false) {
+        // Interrupting feeding (or disabling motion) always removes the remaining food.
+        setFoodVisible(false)
+        actionEndNanos = null
+        node.onFrame = null
         val animator = node.animator
         val indices = 0 until animator.animationCount
         val requestedIndex = indices.firstOrNull { animator.getAnimationName(it).equals(request.clipName, ignoreCase = true) }
@@ -468,10 +473,20 @@ private class PetSceneController(private val asset: PetAsset, private val engine
         animator.updateBoneMatrices()
         val effectiveLoop = loop || requestedIndex == null
         if (!frozen) node.playAnimation(index, loop = effectiveLoop)
+        setFoodVisible(request == PetAnimation.EAT && requestedIndex != null && !frozen)
         actionEndNanos = if (!frozen && !effectiveLoop) {
-            System.nanoTime() + (animator.getAnimationDuration(index).coerceAtLeast(.01f) * 1_000_000_000).toLong()
+            node.playingAnimations.getValue(index).startTime +
+                (animator.getAnimationDuration(index).coerceAtLeast(.01f) * 1_000_000_000).toLong()
         } else null
+        // Node.onFrame runs before animation evaluation/rendering. Ending here prevents
+        // Filament from wrapping an expired clip and flashing a fresh portion for one frame.
+        node.onFrame = if (actionEndNanos != null) ::onFrame else null
         node.requestRender()
+    }
+
+    private fun setFoodVisible(visible: Boolean) {
+        node.renderableNodes.filter { it.name.orEmpty().startsWith("Food_") }
+            .forEach { it.isVisible = visible }
     }
 
     private fun applyAccessories(accessories: Set<PetAccessory>) {

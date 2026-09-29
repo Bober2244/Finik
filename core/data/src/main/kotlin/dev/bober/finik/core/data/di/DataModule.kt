@@ -5,6 +5,7 @@ import dev.bober.finik.core.data.DeviceIdProvider
 import dev.bober.finik.core.data.FinikRepository
 import dev.bober.finik.core.data.FinikViewModel
 import dev.bober.finik.core.data.SessionStore
+import dev.bober.finik.core.data.RoomSnapshotStore
 import dev.bober.finik.core.database.FinikDatabase
 import dev.bober.finik.core.network.NetworkConfig
 import dev.bober.finik.core.network.createFinikApi
@@ -20,10 +21,7 @@ val dataModule = module {
             .build()
     }
     singleOf(::SessionStore)
-    singleOf(::DeviceIdProvider)
-    single {
-        createFinikApi(baseUrl = get<NetworkConfig>().baseUrl, tokenProvider = { get<SessionStore>().token() })
-    }
-    single { FinikRepository(db = get(), apiProvider = { get() }, session = get(), deviceIds = get(), networkConfig = get()) }
+    single { DeviceIdProvider(get<SessionStore>()) }
+    single { FinikRepository(cacheStore = RoomSnapshotStore(get()), apiFactory = { address, tokenProvider -> createFinikApi(address, tokenProvider) }, session = get<SessionStore>(), deviceIds = get(), networkConfig = get()) }
     viewModelOf(::FinikViewModel)
 }

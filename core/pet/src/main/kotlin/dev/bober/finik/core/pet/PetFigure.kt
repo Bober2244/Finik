@@ -61,7 +61,8 @@ enum class PetAnimation(val clipName: String) {
     DRINK("Stand_and_Drink"),
     GREET("Big_Wave_Hello"),
     HELP("Wave_for_Help_1"),
-    THINK("01a0cfcc-7a03-75ac-bde5-e71cb8b79d9e"),
+    EAT("Eating"),
+    DANCE("FunnyDancing_01"),
 }
 
 val LocalPetAnimationEnabled = compositionLocalOf { true }

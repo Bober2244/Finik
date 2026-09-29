@@ -1,661 +1,477 @@
 package dev.bober.finik.core.data
 
-import dev.bober.finik.core.data.content.ContentCatalog
-import dev.bober.finik.core.data.game.GameEngine
-import dev.bober.finik.core.data.snapshot.decodeSnapshot
-import dev.bober.finik.core.data.snapshot.encode
-import dev.bober.finik.core.database.FinikDatabase
-import dev.bober.finik.core.database.StateEntity
-import dev.bober.finik.core.model.AiQuiz
-import dev.bober.finik.core.model.AiQuizAnswer
-import dev.bober.finik.core.model.BuyCheck
-import dev.bober.finik.core.model.ChatReply
-import dev.bober.finik.core.model.DiaryEntry
-import dev.bober.finik.core.model.DreamPlan
-import dev.bober.finik.core.model.EngineResult
-import dev.bober.finik.core.model.EventChoice
-import dev.bober.finik.core.model.GameSnapshot
-import dev.bober.finik.core.model.GlossaryTerm
-import dev.bober.finik.core.model.LessonAnswer
-import dev.bober.finik.core.model.OriginStory
-import dev.bober.finik.core.model.PetAppearance
-import dev.bober.finik.core.model.PetMood
-import dev.bober.finik.core.model.PetPotStyle
-import dev.bober.finik.core.model.PetSpecies
-import dev.bober.finik.core.model.QuizQuestion
-import dev.bober.finik.core.model.SampleData
-import dev.bober.finik.core.model.SpendCategory
-import dev.bober.finik.core.model.TodayEvent
-import dev.bober.finik.core.model.WordOfDay
-import dev.bober.finik.core.network.FinikApi
-import dev.bober.finik.core.network.NetworkConfig
-import dev.bober.finik.core.network.FinikApiException
-import dev.bober.finik.core.network.FinikJson
-import dev.bober.finik.core.network.dto.AnswerIn
-import dev.bober.finik.core.network.dto.BonusIn
-import dev.bober.finik.core.network.dto.BuyIn
-import dev.bober.finik.core.network.dto.CareIn
-import dev.bober.finik.core.network.dto.ChatIn
-import dev.bober.finik.core.network.dto.ChooseIn
-import dev.bober.finik.core.network.dto.CustomizeIn
-import dev.bober.finik.core.network.dto.DepositIn
-import dev.bober.finik.core.network.dto.GoalIn
-import dev.bober.finik.core.network.dto.LoginIn
-import dev.bober.finik.core.network.dto.PetIn
-import dev.bober.finik.core.network.dto.PlanIn
-import dev.bober.finik.core.network.dto.QuizAnswerIn
-import dev.bober.finik.core.network.dto.SettingsIn
-import dev.bober.finik.core.network.dto.StateOut
-import dev.bober.finik.core.network.userMessage
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import dev.bober.finik.core.model.*
+import dev.bober.finik.core.network.*
+import dev.bober.finik.core.network.dto.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import java.time.LocalDate
+import kotlinx.serialization.SerializationException
+import java.time.Instant
+import java.time.ZoneId
 import kotlin.math.roundToInt
 
 data class CareEvent(val category: SpendCategory, val sequence: Long)
-
 data class ToastEvent(val text: String, val warning: Boolean = false)
 
+/** Server owns every game mutation. Room is a separate read-only cache for each session. */
 class FinikRepository(
-    private val db: FinikDatabase,
-    apiProvider: () -> FinikApi,
-    private val session: SessionStore,
+    private val cacheStore: SnapshotStore,
+    private val apiFactory: (String, suspend () -> String?) -> FinikApi,
+    private val session: PlayerSession,
     private val deviceIds: DeviceIdProvider,
     private val networkConfig: NetworkConfig,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    // Creating OkHttp and its plugins is unnecessary on the offline startup path.
-    private val api: FinikApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED, apiProvider)
+    private var currentApi: FinikApi? = null
+    private val api: FinikApi get() = checkNotNull(currentApi)
+    private var endpointInitialized = false
+    private val _serverAddress = MutableStateFlow(networkConfig.normalizedBaseUrl)
+    val serverAddress = _serverAddress.asStateFlow()
+    val canChangeServer = networkConfig.canChangeServer
     private val scope = CoroutineScope(SupervisorJob() + io)
-    private val stateMutex = Mutex()
-    private val sessionMutex = Mutex()
-    private var catalog = ContentCatalog()
-    // The old server economy remains in compatibility methods below, but has no activation path.
-    // Game state is always authoritative in Room and updated through GameEngine.
-    private val remoteEnabled = false
-    private val _extrasEnabled = MutableStateFlow(false)
-    val extrasEnabled: StateFlow<Boolean> = _extrasEnabled.asStateFlow()
-
-    private val _state = MutableStateFlow(SampleData.snapshot.copy(onboarded = false, ready = false))
-    val state: StateFlow<GameSnapshot> = _state.asStateFlow()
-    private val _loadProblem = MutableStateFlow<String?>(null)
-    val loadProblem: StateFlow<String?> = _loadProblem.asStateFlow()
-
-    private val _toasts = MutableSharedFlow<ToastEvent>(extraBufferCapacity = 8)
-    val toasts: SharedFlow<ToastEvent> = _toasts.asSharedFlow()
-
-    private val _careEvents = MutableSharedFlow<CareEvent>(extraBufferCapacity = 8)
-    val careEvents: SharedFlow<CareEvent> = _careEvents.asSharedFlow()
+    private val requests = Mutex()
+    private var mode = "normal"
+    private var cache: ServerCache? = null
     private var careSequence = 0L
-
-    var glossary: List<GlossaryTerm> = catalog.glossary
+    private val _state = MutableStateFlow(emptyState().copy(ready = false))
+    val state = _state.asStateFlow()
+    private val _busy = MutableStateFlow(false)
+    val busy = _busy.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null)
+    val error = _error.asStateFlow()
+    val loadProblem = error
+    private val _extrasEnabled = MutableStateFlow(false)
+    val extrasEnabled = _extrasEnabled.asStateFlow()
+    private val _toasts = MutableSharedFlow<ToastEvent>(extraBufferCapacity = 8)
+    val toasts = _toasts.asSharedFlow()
+    private val _careEvents = MutableSharedFlow<CareEvent>(extraBufferCapacity = 8)
+    val careEvents = _careEvents.asSharedFlow()
+    var glossary: List<GlossaryTerm> = emptyList()
         private set
-    val scenarios get() = catalog.scenarios
-    val quiz get() = catalog.quiz
 
-    init {
-        scope.launch { boot() }
+    init { scope.launch { boot() } }
+
+    private fun emptyState(demo: Boolean = false) = SampleData.snapshot.copy(
+        onboarded = false, ready = true, online = false, demoMode = demo,
+        shop = emptyList(), tasks = emptyList(), history = emptyList(), badges = emptyList(),
+        report = null, weekLog = emptyList(), transactions = emptyList(),
+        goals = SampleData.goals.map { it.copy(saved = 0) },
+    )
+
+    private suspend fun boot() = request(requireOnline = false) {
+        mode = session.mode()
+        restoreCache(mode)
+        authenticate(mode)
     }
 
-    private suspend fun boot() {
-        catalog = ContentCatalog()
-        glossary = catalog.glossary
-        val loaded = stateMutex.withLock {
-            val stored = try {
-                db.stateDao().get()?.json
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Throwable) {
-                showLoadProblem()
-                return@withLock false
-            }
-            val base = if (stored == null) {
-                SampleData.snapshot.copy(onboarded = false, ready = true)
-            } else {
-                try {
-                    decodeSnapshot(stored, catalog)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Throwable) {
-                    showLoadProblem()
-                    return@withLock false
-                }
-            }
-            val initial = base.copy(
-                shop = base.shop + catalog.shop.filterNot { candidate -> base.shop.any { it.id == candidate.id } },
-                goals = base.goals + catalog.goals.filterNot { candidate -> base.goals.any { it.id == candidate.id } },
-                tasks = base.tasks + catalog.tasks.filterNot { candidate -> base.tasks.any { it.id == candidate.id } },
-                ready = true,
-                online = false,
-            )
-            _state.value = initial
-            _loadProblem.value = null
-            if (initial.onboarded) commit(GameEngine.dailyOpen(initial, today()))
-            true
+    private suspend fun initializeEndpoint() {
+        if (endpointInitialized) return
+        val saved = if (canChangeServer) session.serverAddress() else null
+        val address = saved?.let { runCatching { NetworkConfig.normalize(it) }.getOrNull() }
+            ?: networkConfig.normalizedBaseUrl
+        if (session.boundServer() != address) {
+            session.selectServer(address, saveOverride = false)
+            cacheStore.clear(1)
+            cacheStore.clear(2)
         }
-        if (loaded) sessionMutex.withLock {
-            if (session.onlineExtrasEnabled()) enableOnlineExtras(silent = true)
-        }
+        _serverAddress.value = address
+        currentApi = authenticatedApi(address)
+        endpointInitialized = true
     }
 
-    private fun showLoadProblem() {
-        _state.value = _state.value.copy(ready = false)
-        _loadProblem.value = "Сохранение не удалось прочитать. Оно осталось на устройстве."
+    private fun authenticatedApi(address: String): FinikApi = apiFactory(address) {
+        // Session tokens belong to one server, including across process restarts.
+        if (session.boundServer() == address) session.token() else null
     }
 
-    suspend fun retryLoad() = boot()
+    suspend fun connectToServer(rawAddress: String): Pair<Boolean, String> =
+        scope.async { switchServer(rawAddress) }.await()
 
-    /** Online content is optional. Local money, progress and reports never come from the server. */
-    suspend fun setOnlineExtras(enabled: Boolean) = sessionMutex.withLock {
-        session.saveOnlineExtrasEnabled(enabled)
-        if (enabled) enableOnlineExtras(silent = false) else {
-            _extrasEnabled.value = false
-            _state.value = _state.value.copy(todayEvent = null, wordOfDay = null)
-            _toasts.emit(ToastEvent("Сетевые материалы выключены."))
-        }
-    }
-
-    private suspend fun enableOnlineExtras(silent: Boolean) {
-        if (!networkConfig.isSecure) {
-            _extrasEnabled.value = false
-            if (!silent) _toasts.emit(ToastEvent("Для сетевых материалов нужен адрес HTTPS.", warning = true))
-            return
-        }
-        val connected = ensureRemoteLogin()
-        _extrasEnabled.value = connected
-        if (!connected) {
-            if (!silent) _toasts.emit(ToastEvent("Сервер сейчас недоступен. Игра продолжит работать офлайн.", warning = true))
-            return
-        }
-        if (!silent) _toasts.emit(ToastEvent("Сетевые материалы включены. Игровой прогресс остаётся на устройстве."))
-        refreshSupplementalContent()
-    }
-
-    private suspend fun refreshSupplementalContent() {
-        if (!_extrasEnabled.value) return
-        runCatching { withContext(io) { api.terms() } }.onSuccess { remote ->
-            if (remote.isNotEmpty()) glossary = (catalog.glossary + remote.map { it.toModel() }).distinctBy { it.term }
-        }
-        runCatching { withContext(io) { api.wordOfDay() } }.onSuccess { word ->
-            _state.value = _state.value.copy(wordOfDay = word.toModel())
-        }
-        runCatching { withContext(io) { api.todayEvent() } }.onSuccess { event ->
-            _state.value = _state.value.copy(todayEvent = event?.toModel())
-        }
-    }
-
-    suspend fun createProfile(
-        name: String,
-        species: PetSpecies,
-        appearance: PetAppearance,
-        income: Int,
-    ) {
-        val created = GameEngine.createProfile(
-            name = name,
-            species = species,
-            potStyle = PetPotStyle.CLAY,
-            appearance = appearance,
-            income = income,
-            shop = catalog.shop,
-            goals = catalog.goals,
-            tasks = catalog.tasks,
-            epochDay = today(),
-        )
-        stateMutex.withLock {
-            if (!_state.value.onboarded) {
-                commit(EngineResult(created, "Привет, ${created.pet.name}! Разложи ${created.plan.weeklyIncome} монет: нужное, желаемое, копилка."))
-            }
-        }
-    }
-
-    suspend fun changePlan(category: SpendCategory, delta: Int) {
-        if (!remoteEnabled) {
-            apply { GameEngine.changePlan(this, category, delta) }
-            return
-        }
-        val preview = GameEngine.changePlan(_state.value, category, delta)
-        if (preview.warning || !remoteEnabled) {
-            commit(preview)
-            return
-        }
-        applyRemoteState(runCatchingUser { api.setPlan(preview.state.plan.toPlanIn()) } ?: return, preview.message)
-    }
-
-    suspend fun applyAdvice() {
-        if (remoteEnabled) {
-            if (_state.value.planConfirmed) {
-                _toasts.emit(ToastEvent("План уже подтверждён.", warning = true))
-                return
-            }
-            val income = _state.value.plan.weeklyIncome
-            val food = (income * 0.40).roundToInt()
-            val water = (income * 0.30).roundToInt()
-            val play = (income * 0.10).roundToInt()
-            val save = (income - food - water - play).coerceAtLeast(0)
-            applyRemoteState(
-                runCatchingUser { api.setPlan(PlanIn(food, water, play, save)) } ?: return,
-                "Совет 40/30/10/20: еда $food, вода $water, игры $play, копилка $save.",
-            )
-            return
-        }
-        apply { GameEngine.applyAdvice(this) }
-    }
-
-    suspend fun resetPlan() {
-        if (remoteEnabled) {
-            if (_state.value.planConfirmed) {
-                _toasts.emit(ToastEvent("После подтверждения план не сбрасывается.", warning = true))
-                return
-            }
-            applyRemoteState(runCatchingUser { api.setPlan(PlanIn(0, 0, 0, 0)) } ?: return, "План очищен. Разложи монеты заново.")
-            return
-        }
-        apply { GameEngine.resetPlan(this) }
-    }
-
-    suspend fun confirmPlan() {
-        if (remoteEnabled) {
-            applyRemoteState(runCatchingUser { api.confirmPlan() } ?: return, "План утверждён.")
-            refreshRemoteLists()
-            return
-        }
-        apply { GameEngine.confirmPlan(this) }
-    }
-
-    suspend fun care(category: SpendCategory) {
-        if (remoteEnabled) {
-            val out = runCatchingUser { api.care(CareIn(category.name)) } ?: return
-            val label = _state.value.care.firstOrNull { it.category == category }?.label ?: category.label
-            val extra = if (out.fromSavings) " Добрали из копилки." else ""
-            applyRemoteState(out.state, "$label. +${out.xpGained} опыта.$extra")
-            _careEvents.emit(CareEvent(category, ++careSequence))
-            return
-        }
-        stateMutex.withLock {
-            val result = GameEngine.care(_state.value, category)
-            commit(result)
-            if (!result.warning) _careEvents.emit(CareEvent(category, ++careSequence))
-        }
-    }
-
-    suspend fun buy(itemId: String) {
-        if (remoteEnabled) {
-            val out = runCatchingUser { api.buy(BuyIn(itemId)) } ?: return
-            applyRemoteState(out.state, "Купили «${out.name.animalText()}».")
-            refreshShopAndTasks()
-            return
-        }
-        apply { GameEngine.buy(this, itemId) }
-    }
-
-    suspend fun customize(pot: String? = null, accessory: String? = null, lookVariant: Int? = null) {
-        if (!remoteEnabled) return
-        applyRemoteState(runCatchingUser { api.customize(CustomizeIn(pot, accessory, lookVariant)) } ?: return)
-    }
-
-    /** The existing backend only stores plant cosmetic slots; animal colors stay on this device. */
-    suspend fun customizeAppearance(appearance: PetAppearance) {
-        mutate { copy(pet = pet.copy(appearance = appearance)) }
-        _toasts.emit(ToastEvent("Внешность сохранена на этом устройстве."))
-    }
-
-    suspend fun deposit(amount: Int) {
-        if (remoteEnabled) {
-            applyRemoteState(runCatchingUser { api.deposit(DepositIn(amount)) } ?: return)
-            return
-        }
-        apply { GameEngine.deposit(this, amount) }
-    }
-
-    suspend fun withdraw(amount: Int) {
-        if (remoteEnabled) {
-            _toasts.emit(ToastEvent("Из копилки на сервере снимать нельзя — только на мечту.", warning = true))
-            return
-        }
-        apply { GameEngine.withdraw(this, amount) }
-    }
-
-    suspend fun selectGoal(id: String) {
-        if (remoteEnabled) {
-            val slug = _state.value.goals.firstOrNull { it.id == id }?.catalogSlug ?: id
-            applyRemoteState(runCatchingUser { api.selectGoal(GoalIn(slug)) } ?: return)
-            return
-        }
-        apply { GameEngine.selectGoal(this, id) }
-    }
-
-    suspend fun completeTask(taskId: String, correct: Boolean, reward: Int) {
-        apply { GameEngine.completeTask(this, taskId, correct, reward) }
-        if (remoteEnabled && correct) {
-            runCatching { withContext(io) { api.claim(taskId) } }
-                .onSuccess { applyRemoteState(it) }
-            refreshShopAndTasks()
-        }
-    }
-
-    suspend fun taskQuestions(slug: String): List<QuizQuestion> =
-        runCatchingUser { api.questions(slug) }?.map { it.toModel() }.orEmpty()
-
-    suspend fun answerTask(slug: String, questionSlug: String, answerIndex: Int): LessonAnswer? {
-        val out = runCatchingUser { api.answer(slug, AnswerIn(questionSlug, answerIndex)) } ?: return null
-        return out.toModel()
-    }
-
-    suspend fun claimTask(slug: String) {
-        if (!remoteEnabled) return
-        applyRemoteState(runCatchingUser { api.claim(slug) } ?: return)
-        refreshShopAndTasks()
-    }
-
-    suspend fun closeWeek(): Boolean {
-        return stateMutex.withLock {
-            val result = GameEngine.closeWeek(_state.value)
-            commit(result)
-            result.reportReady && !result.warning && result.state.report != null
-        }
-    }
-
-    suspend fun repeatLastPlan() {
-        if (!remoteEnabled) {
-            apply { GameEngine.repeatLastPlan(this, report) }
-            return
-        }
-        val report = _state.value.report
-        if (report == null) {
-            apply { GameEngine.repeatLastPlan(this, report) }
-            return
-        }
-        val food = report.rows.firstOrNull { it.category == SpendCategory.FOOD }?.planned ?: 0
-        val water = report.rows.firstOrNull { it.category == SpendCategory.WATER }?.planned ?: 0
-        val play = report.rows.firstOrNull { it.category == SpendCategory.PLAY }?.planned ?: 0
-        val save = report.rows.firstOrNull { it.category == SpendCategory.SAVE }?.planned ?: 0
-        applyRemoteState(
-            runCatchingUser { api.setPlan(PlanIn(food, water, play, save)) } ?: return,
-            "Повторили прошлый план. Проверь и подтверди.",
-        )
-    }
-
-    suspend fun parentBonus(amount: Int = 10, reason: String = "поддержка", pin: String = "") {
-        if (remoteEnabled) {
-            if (pin.isBlank()) {
-                _toasts.emit(ToastEvent("Нужен код родителя", warning = true))
-                return
-            }
-            applyRemoteState(
-                runCatchingUser {
-                    api.parentBonus(BonusIn(amount.coerceIn(1, 20), reason.take(80), pin.take(16)))
-                } ?: return,
-                "Взрослый добавил $amount монет. Это поддержка, а не оценка.",
-            )
-            return
-        }
-        apply { GameEngine.parentBonus(this, amount) }
-    }
-
-    suspend fun setSound(on: Boolean) {
-        if (remoteEnabled) {
-            applyRemoteState(runCatchingUser { api.updateProfile(SettingsIn(soundOn = on)) } ?: return)
-            _state.value = _state.value.copy(soundOn = on)
-            persist(_state.value)
-            return
-        }
-        mutate { GameEngine.setSound(this, on) }
-    }
-
-    suspend fun setMotion(on: Boolean) = mutate { copy(motionOn = on) }
-
-    suspend fun setDemo(on: Boolean) = mutate { GameEngine.setDemo(this, on) }
-
-    suspend fun setIncome(income: Int) {
-        if (remoteEnabled) {
-            applyRemoteState(runCatchingUser { api.updateProfile(SettingsIn(weeklyIncome = income)) } ?: return)
-            return
-        }
-        apply { GameEngine.setIncome(this, income) }
-    }
-
-    suspend fun setEventMode(mode: String) {
-        if (!remoteEnabled) return
-        applyRemoteState(runCatchingUser { api.updateProfile(SettingsIn(eventMode = mode)) } ?: return)
-        _state.value = _state.value.copy(eventMode = mode)
-        persist(_state.value)
-    }
-
-    fun buyCheck(itemId: String): BuyCheck? {
-        val item = _state.value.shop.firstOrNull { it.id == itemId } ?: return null
-        if (remoteEnabled && !item.affordable) {
-            return BuyCheck(false, "В статье «${item.category.label}» не хватает монет.")
-        }
-        return GameEngine.checkBuy(_state.value, item)
-    }
-
-    suspend fun resetProfile(localOnly: Boolean = false): Boolean = sessionMutex.withLock {
-        stateMutex.withLock reset@ {
-            val hasRemoteSession = session.token() != null
-            var remoteDeleteFailed = hasRemoteSession && !networkConfig.isSecure
-            if (!localOnly && hasRemoteSession && networkConfig.isSecure) {
-                try {
-                    withContext(io) { api.reset() }
-                } catch (e: FinikApiException) {
-                    if (e.httpStatus != 404) remoteDeleteFailed = true
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Throwable) {
-                    remoteDeleteFailed = true
-                }
-            }
-            if (!localOnly && remoteDeleteFailed) {
-                _toasts.emit(ToastEvent("Сервер не подтвердил удаление. Профиль сохранён. Повторите позже или выберите удаление только на устройстве.", warning = true))
-                return@reset false
-            }
-            try {
-                withContext(io) { db.stateDao().clear() }
-                session.clearAll()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Throwable) {
-                _toasts.emit(ToastEvent("Не удалось удалить локальные данные. Повторите попытку.", warning = true))
-                return@reset false
-            }
-            _extrasEnabled.value = false
-            _loadProblem.value = null
-            _state.value = SampleData.snapshot.copy(
-                onboarded = false,
-                ready = true,
-                shop = catalog.shop,
-                goals = catalog.goals,
-                online = false,
-            )
-            _toasts.emit(ToastEvent(
-                if (localOnly && hasRemoteSession) "Локальный профиль удалён. Серверные данные не удалялись." else "Профиль сброшен. Можно начать заново.",
-                warning = localOnly && hasRemoteSession,
-            ))
-            true
-        }
-    }
-
-    suspend fun todayEvent(): TodayEvent? {
-        if (!_extrasEnabled.value) return null
-        val event = runCatchingUser { api.todayEvent() }?.toModel()
-        if (event != null) {
-            _state.value = _state.value.copy(todayEvent = event)
-        }
-        return event ?: _state.value.todayEvent
-    }
-
-    suspend fun chooseEvent(id: String, option: String): EventChoice? {
-        if (!_extrasEnabled.value) return null
-        val out = runCatchingUser { api.chooseEvent(id, ChooseIn(option)) } ?: return null
-        _state.value = _state.value.copy(todayEvent = _state.value.todayEvent?.copy(chosen = option))
-        _toasts.emit(ToastEvent("Сетевой сюжет: ${out.note.animalText()} Локальные монеты не меняются."))
-        return out.toModel()
-    }
-
-    suspend fun wordOfDay(): WordOfDay? {
-        if (!_extrasEnabled.value) return null
-        val word = runCatchingUser { api.wordOfDay() }?.toModel()
-        if (word != null) _state.value = _state.value.copy(wordOfDay = word)
-        return word
-    }
-
-    suspend fun diary(): DiaryEntry? = if (_extrasEnabled.value) runCatchingUser { api.diary() }?.toModel() else null
-
-    suspend fun dreamPlan(): DreamPlan? = if (_extrasEnabled.value) runCatchingUser { api.dreamPlan() }?.toModel() else null
-
-    suspend fun origin(): OriginStory? = if (_extrasEnabled.value) runCatchingUser { api.origin() }?.toModel() else null
-
-    suspend fun weekSummary(): String? = if (_extrasEnabled.value) runCatchingUser { api.weekSummary() }?.text else null
-
-    suspend fun aiQuiz(kind: String = "quiz"): AiQuiz? = if (_extrasEnabled.value) runCatchingUser { api.quiz(kind) }?.toModel() else null
-
-    suspend fun answerQuiz(index: Int, answerIndex: Int, kind: String = "quiz"): AiQuizAnswer? {
-        if (!_extrasEnabled.value) return null
-        val out = runCatchingUser { api.answerQuiz(QuizAnswerIn(index, answerIndex, kind)) } ?: return null
-        return out.toModel()
-    }
-
-    suspend fun chat(text: String): ChatReply? = if (_extrasEnabled.value) runCatchingUser { api.chat(ChatIn(text)) }?.toModel() else null
-
-    private suspend fun refreshHomeExtras() {
-        runCatching { withContext(io) { api.remark() } }.onSuccess { remark ->
-            val mood = runCatching { PetMood.valueOf(remark.mood) }.getOrDefault(_state.value.pet.mood)
-            val next = _state.value.copy(pet = _state.value.pet.copy(moodNote = remark.text.animalText(), mood = mood))
-            persist(next)
-            _state.value = next
-        }
-        runCatching { withContext(io) { api.wordOfDay() } }.onSuccess {
-            _state.value = _state.value.copy(wordOfDay = it.toModel())
-        }
-        runCatching { withContext(io) { api.todayEvent() } }.onSuccess { event ->
-            _state.value = _state.value.copy(todayEvent = event?.toModel())
-        }
-    }
-
-    private suspend fun refreshCatalogs() {
-        runCatching { withContext(io) { api.goalCatalog() } }.onSuccess { remote ->
-            if (remote.isEmpty()) return@onSuccess
-            val mapped = remote.map { it.toModel() }
-            val current = _state.value
-            _state.value = current.copy(
-                goals = mapped.map { goal ->
-                    goal.copy(saved = current.goals.firstOrNull { it.id == goal.id || it.catalogSlug == goal.slugOrId() }?.saved ?: 0)
-                },
-                selectedGoalId = current.selectedGoalId.takeIf { id -> mapped.any { it.id == id } } ?: mapped.first().id,
-            )
-        }
-        runCatching { withContext(io) { api.terms() } }.onSuccess { remote ->
-            if (remote.isNotEmpty()) glossary = remote.map { it.toModel() }
-        }
-    }
-
-    private fun dev.bober.finik.core.model.SavingsGoal.slugOrId(): String = catalogSlug.ifBlank { id }
-
-    private suspend fun refreshShopAndTasks() {
-        runCatching { withContext(io) { api.shopItems() } }.onSuccess { items ->
-            if (items.isNotEmpty()) _state.value = _state.value.copy(shop = items.map { it.toModel() })
-        }
-        runCatching { withContext(io) { api.tasks() } }.onSuccess { items ->
-            _state.value = _state.value.copy(tasks = items.map { it.toModel() })
-        }
-        persist(_state.value)
-    }
-
-    private suspend fun refreshRemoteLists() {
-        refreshCatalogs()
-        refreshShopAndTasks()
-        runCatching { withContext(io) { api.badges() } }.onSuccess { items ->
-            _state.value = _state.value.copy(badges = items.map { it.toModel() })
-        }
-        runCatching { withContext(io) { api.history() } }.onSuccess { history ->
-            _state.value = _state.value.copy(
-                history = history.toWeeks(),
-                report = history.toReport() ?: _state.value.report,
-            )
-        }
-        runCatching { withContext(io) { api.profile() } }.onSuccess { profile ->
-            _state.value = _state.value.copy(
-                earnedTotal = profile.earnedTotal,
-                weeksDone = profile.weeksDone,
-                soundOn = profile.soundOn,
-                eventMode = profile.eventMode,
-                vaccinatedUntil = profile.vaccinatedUntil,
-            )
-        }
-        persist(_state.value)
-    }
-
-    private suspend fun ensureRemoteLogin(): Boolean {
+    private suspend fun switchServer(rawAddress: String): Pair<Boolean, String> {
+        if (!canChangeServer) return false to "Адрес сервера в этой сборке задаётся разработчиком."
+        if (!requests.tryLock()) return false to "Подожди завершения текущего действия."
+        _busy.value = true
+        var applied = false
         return try {
             withContext(io) {
-                val result = api.login(LoginIn(deviceIds.get()))
-                session.saveToken(result.token)
-                true
+                val address = NetworkConfig.normalizeUserAddress(rawAddress)
+                check(networkConfig.copy(baseUrl = address).canConnect) { "Для этой сборки нужен HTTPS-адрес сервера." }
+                // The health probe is anonymous. Later requests may use only the candidate's token.
+                var candidateToken: String? = null
+                val probe = apiFactory(address) { candidateToken }
+                val targetMode = session.mode()
+                val prepared: PreparedLogin
+                try {
+                    check(probe.health()) { "Сервер не подтвердил готовность. Проверь адрес API Finik." }
+                    val login = probe.login(LoginIn(deviceIds.get(), ZoneId.systemDefault().id, targetMode))
+                    check(login.token.isNotBlank() && login.mode == targetMode) { "Сервер вернул неверную сессию Finik." }
+                    candidateToken = login.token
+                    prepared = if (login.hasPet) PreparedLogin(login, state = probe.getState())
+                        else PreparedLogin(login, goals = probe.goalCatalog())
+                } finally { probe.close() }
+
+                initializeEndpoint()
+                mode = targetMode
+                if (address != _serverAddress.value) {
+                    val oldApi = currentApi
+                    val newApi = authenticatedApi(address)
+                    try {
+                        // The caller can leave its screen while this short commit completes.
+                        withContext(NonCancellable) {
+                            session.selectServer(address, saveOverride = true)
+                            applied = true
+                            _serverAddress.value = address
+                            currentApi = newApi
+                            cache = null
+                            glossary = emptyList()
+                            _state.value = emptyState(mode == "demo").copy(ready = false)
+                            _extrasEnabled.value = false
+                            oldApi?.close()
+                        }
+                    } catch (e: Exception) {
+                        if (!applied) newApi.close()
+                        throw e
+                    }
+                    // Endpoint-tagged snapshots cannot be read at the new origin even if deletion fails.
+                    cacheStore.clear(1)
+                    cacheStore.clear(2)
+                } else {
+                    // Rechecking the same address reconnects without deleting either profile cache.
+                    session.saveServerAddress(address)
+                }
+                applied = true
+                _error.value = null
+                authenticate(mode, prepared = prepared)
+                true to "Сервер подключён: $address"
             }
-        } catch (_: Throwable) {
-            false
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            if (applied) {
+                markFailure(e)
+                false to "Адрес сохранён: ${_serverAddress.value}. Войти пока не удалось. ${_error.value.orEmpty()}"
+            } else {
+                val message = if (e is IllegalArgumentException || e is IllegalStateException) e.message.orEmpty()
+                    else "Сервер недоступен. Проверь адрес, сеть и запущен ли API."
+                false to "$message Текущий сервер не изменён."
+            }
+        } finally { _busy.value = false; requests.unlock() }
+    }
+
+    private data class PreparedLogin(
+        val login: LoginOut,
+        val state: StateOut? = null,
+        val goals: List<GoalCatalogOut>? = null,
+    )
+
+    private suspend fun restoreCache(targetMode: String) {
+        val saved = cacheStore.read(cacheId(targetMode))
+        cache = saved?.let {
+            try { FinikJson.json.decodeFromString<ServerCache>(it).takeIf { saved -> saved.serverAddress == _serverAddress.value } }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { null }
+        }
+        _state.value = cache?.toSnapshot(emptyState(targetMode == "demo"), online = false)
+            ?: emptyState(targetMode == "demo")
+        glossary = cache?.terms?.map { it.toModel() }.orEmpty()
+    }
+
+    suspend fun refresh() = request(requireOnline = false) { authenticate(mode) }
+    suspend fun retryLoad() = refresh()
+
+    private suspend fun authenticate(targetMode: String, preset: String? = null, prepared: PreparedLogin? = null) {
+        checkConnectionConfigured()
+        val result = prepared?.login ?: api.login(LoginIn(deviceIds.get(), ZoneId.systemDefault().id, targetMode, preset))
+        session.activate(targetMode, result.token)
+        val changedMode = targetMode != mode || preset != null
+        mode = targetMode
+        if (changedMode) {
+            // A reset demo must never display an earlier demo cache or normal profile.
+            if (preset != null) cacheStore.clear(cacheId(mode))
+            restoreCache(mode)
+        }
+        if (result.hasPet) {
+            acceptState(prepared?.state ?: api.getState())
+            refreshLists()
+            refreshHomeMaterials()
+        } else {
+            cache = null
+            cacheStore.clear(cacheId(mode))
+            val goals = (prepared?.goals ?: api.goalCatalog()).map { it.toModel() }
+            _state.value = emptyState(mode == "demo").copy(
+                online = true, timezone = result.timezone,
+                goals = goals.ifEmpty { SampleData.goals.map { it.copy(saved = 0) } },
+                selectedGoalId = goals.firstOrNull()?.id ?: SampleData.goals.first().id,
+            )
+        }
+        _extrasEnabled.value = _state.value.onboarded
+    }
+
+    suspend fun startDemo(prepared: Boolean) = request(requireOnline = false) {
+        authenticate("demo", if (prepared) "prepared" else "new")
+    }
+    suspend fun leaveDemo() = request(requireOnline = false) { authenticate("normal") }
+
+    suspend fun createProfile(name: String, species: PetSpecies, appearance: PetAppearance, income: Int) = request {
+        if (_state.value.onboarded) return@request
+        val result = api.createPet(PetIn(
+            name.trim(), species.legacyApiName, income,
+            _state.value.goals.firstOrNull()?.catalogSlug,
+            appearance.furColor.ordinal,
+            appearance.accessories.map { it.id },
+        ))
+        finishAction(result, "Привет, ${result.pet.name}! Распредели недельный доход.")
+        refreshHomeMaterials()
+    }
+
+    suspend fun changePlan(category: SpendCategory, delta: Int) = request {
+        val current = _state.value
+        if (current.planConfirmed) {
+            require(delta > 0) { "Подтверждённый план можно только пополнять свободными монетами." }
+            finishAction(api.topUpPlan(planAmounts(mapOf(category to delta))))
+        } else {
+            val amounts = current.plan.entries.associate { it.category to it.planned }.toMutableMap()
+            amounts[category] = (amounts[category] ?: 0) + delta
+            require(amounts.getValue(category) >= 0) { "В статье уже нет монет." }
+            finishAction(api.setPlan(planAmounts(amounts)))
         }
     }
 
-    private suspend fun applyRemoteState(out: StateOut, message: String? = null, warning: Boolean = false, appearance: PetAppearance? = null) {
-        session.saveSnapshotJson(FinikJson.json.encodeToString(StateOut.serializer(), out))
-        val mapped = out.toSnapshot(_state.value)
-        val next = if (appearance != null) mapped.copy(pet = mapped.pet.copy(appearance = appearance)) else mapped
-        persist(next)
-        _state.value = next
-        if (!message.isNullOrBlank()) _toasts.emit(ToastEvent(message, warning))
+    suspend fun applyAdvice() = request {
+        check(!_state.value.planConfirmed) { "План уже подтверждён. Можно пополнить отдельные статьи." }
+        val available = _state.value.plan.freeCoins + _state.value.plan.total
+        val food = (available * .4).roundToInt()
+        val water = (available * .3).roundToInt()
+        val play = (available * .1).roundToInt()
+        finishAction(api.setPlan(PlanIn(food, water, play, available - food - water - play)), "План 40/30/10/20 готов к подтверждению.")
+    }
+    suspend fun resetPlan() = request {
+        check(!_state.value.planConfirmed) { "Подтверждённый план нельзя сбросить." }
+        finishAction(api.setPlan(PlanIn(0, 0, 0, 0)))
+    }
+    suspend fun confirmPlan() = request { finishAction(api.confirmPlan(), "План подтверждён.") }
+    suspend fun care(category: SpendCategory) = request {
+        val out = api.care(CareIn(category.name))
+        finishAction(out.state, "+${out.restored} к потребности, +${out.xpGained} XP." + if (out.fromSavings) " Оплачено из копилки." else "")
+        _careEvents.emit(CareEvent(category, ++careSequence))
+    }
+    suspend fun buy(itemId: String) = request {
+        val out = api.buy(BuyIn(itemId))
+        finishAction(out.state, "Купили «${out.name.animalText()}».")
+    }
+    suspend fun customize(pot: String? = null, accessory: String? = null, lookVariant: Int? = null) = request {
+        finishAction(api.customize(CustomizeIn(pot, accessory, lookVariant)))
+    }
+    suspend fun customizeAppearance(appearance: PetAppearance) = request {
+        finishAction(api.customize(CustomizeIn(lookVariant = appearance.furColor.ordinal, accessories = appearance.accessories.map { it.id })), "Внешность сохранена.")
+    }
+    suspend fun deposit(amount: Int) = request { finishAction(api.deposit(DepositIn(amount))) }
+    suspend fun withdraw(amount: Int) = request { finishAction(api.withdraw(DepositIn(amount))) }
+    suspend fun selectGoal(id: String) = request {
+        val slug = _state.value.goals.firstOrNull { it.id == id }?.catalogSlug ?: id
+        finishAction(api.selectGoal(GoalIn(slug)))
+    }
+    suspend fun taskQuestions(slug: String): List<QuizQuestion> = readRequest {
+        api.questions(slug).map { it.toModel() }
+    }.orEmpty()
+    suspend fun answerTask(slug: String, questionSlug: String, answerIndex: Int? = null, answerValue: Int? = null): LessonAnswer? = request {
+        val out = api.answer(slug, AnswerIn(questionSlug, answerIndex, answerValue))
+        refreshListsAfterAction()
+        out.toModel()
+    }
+    suspend fun claimTask(slug: String) = request { finishAction(api.claim(slug), "Награда поступила в свободные монеты.") }
+    suspend fun taskHint(slug: String, questionSlug: String): String? = request { api.taskHint(slug, HintIn(questionSlug)).text }
+
+    suspend fun adventure(slug: String): Adventure? = readRequest { api.adventure(slug).toModel() }
+    suspend fun playAdventure(slug: String, action: AdventureAction): Adventure? = request {
+        val out = api.playAdventure(slug, AdventureActionIn(action.expectedStage, action.food, action.water, action.reserve, action.choiceId, action.amount))
+        refreshListsAfterAction()
+        out.toModel()
+    }
+    suspend fun restartAdventure(slug: String): Adventure? = request { api.restartAdventure(slug).toModel() }
+    suspend fun review(): LearningReview? = readRequest { api.review().toModel() }
+    suspend fun answerReview(topic: String, answerIndex: Int): ReviewAnswer? = request { api.answerReview(ReviewAnswerIn(topic, answerIndex)).toModel() }
+
+    suspend fun advanceDemoDay() = request {
+        check(_state.value.demoMode && _state.value.canAdvanceTime) { "Пропуск времени доступен только в демо." }
+        finishAction(api.advanceDemo(DemoAdvanceIn(days = 1)), "В демо наступил следующий день.")
+    }
+    suspend fun closeWeek(): Boolean = request {
+        check(_state.value.demoMode && _state.value.canAdvanceTime) { "Неделя завершится автоматически по местному времени. Ускорение доступно только в демо." }
+        finishAction(api.advanceDemo(DemoAdvanceIn(toWeekEnd = true)), "Демонстрационная неделя завершена.")
+        _state.value.report != null
+    } ?: false
+    suspend fun repeatLastPlan() = request {
+        val report = _state.value.report ?: error("Ещё нет завершённой недели.")
+        check(!_state.value.planConfirmed) { "Текущий план уже подтверждён." }
+        finishAction(api.setPlan(planAmounts(report.rows.associate { it.category to it.planned })))
+    }
+    suspend fun parentBonus(amount: Int = 10, reason: String = "Поддержка родителя", pin: String = "") = request {
+        require(pin.isNotBlank()) { "Нужен PIN родителя." }
+        require(amount in 1..20) { "Можно начислить от 1 до 20 монет." }
+        finishAction(api.parentBonus(BonusIn(amount, reason.take(80), pin)), "Начислено $amount монет.")
+    }
+    suspend fun setSound(on: Boolean) = request { finishAction(api.updateProfile(SettingsIn(soundOn = on))) }
+    suspend fun setMotion(on: Boolean) = request(requireOnline = false) {
+        // Motion is a device display preference and never changes game progress.
+        _state.value = _state.value.copy(motionOn = on)
+        cache = cache?.copy(motionOn = on)
+        persist()
+    }
+    suspend fun setIncome(income: Int) = request { finishAction(api.updateProfile(SettingsIn(weeklyIncome = income)), "Новый доход действует со следующей недели.") }
+    suspend fun setEventMode(eventMode: String) = request { finishAction(api.updateProfile(SettingsIn(eventMode = eventMode))) }
+    suspend fun setOnlineExtras(enabled: Boolean) {
+        if (enabled) refresh() else _toasts.emit(ToastEvent("Игра использует сервер. Без сети доступен просмотр сохранённого состояния."))
+    }
+    fun buyCheck(itemId: String): BuyCheck? {
+        val item = _state.value.shop.firstOrNull { it.id == itemId } ?: return null
+        return when {
+            !_state.value.online -> BuyCheck(false, "Для покупки нужно подключение к серверу.")
+            item.owned -> BuyCheck(false, "Этот предмет уже куплен.")
+            !item.affordable -> BuyCheck(false, "Не хватает монет в статье «${item.category.label}».")
+            else -> BuyCheck(true, "Купить «${item.name}» за ${item.cost} монет?")
+        }
+    }
+    suspend fun resetProfile(): Boolean = request {
+        // There is no local-only progress to reset. Keep the device identity for the server account.
+        api.reset()
+        cacheStore.clear(cacheId(mode))
+        cache = null
+        _state.value = emptyState(mode == "demo").copy(online = true)
+        _extrasEnabled.value = false
+        true
+    } ?: false
+
+    suspend fun todayEvent(): TodayEvent? = readRequest {
+        val event = api.todayEvent()
+        cache = cache?.copy(event = event)
+        publish()
+        event?.toModel()
+    }
+    suspend fun chooseEvent(id: String, option: String): EventChoice? = request {
+        val out = api.chooseEvent(id, ChooseIn(option))
+        cache = cache?.copy(event = cache?.event?.copy(chosen = option))
+        finishAction(out.state, out.note.animalText())
+        out.toModel()
+    }
+    suspend fun wordOfDay(): WordOfDay? = readRequest { api.wordOfDay().toModel() }
+    suspend fun diary(): DiaryEntry? = readRequest { api.diary().toModel() }
+    suspend fun dreamPlan(): DreamPlan? = readRequest { api.dreamPlan().toModel() }
+    suspend fun origin(): OriginStory? = readRequest { api.origin().toModel() }
+    suspend fun weekSummary(): String? = readRequest { api.weekSummary().text }
+    suspend fun aiQuiz(kind: String = "quiz"): AiQuiz? = readRequest { api.quiz(kind).toModel() }
+    suspend fun answerQuiz(index: Int, answerIndex: Int, kind: String = "quiz"): AiQuizAnswer? = request {
+        val out = api.answerQuiz(QuizAnswerIn(index, answerIndex, kind))
+        // The quiz endpoint returns a reward rather than state. Only a GET reconciles its balance.
+        try { finishAction(api.getState()) } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { markFailure(e, "Ответ принят. Обнови состояние, чтобы увидеть награду.") }
+        out.toModel()
+    }
+    suspend fun chat(text: String): ChatReply? = request { api.chat(ChatIn(text)).toModel() }
+
+    private suspend fun refreshHomeMaterials() = supervisorScope {
+        // Optional generated text cannot roll back a loaded game.
+        val word = async { optional { api.wordOfDay() } }
+        val remark = async { optional { api.remark() } }
+        val loadedWord = word.await()
+        val loadedRemark = remark.await()
+        cache = cache?.let { current -> current.copy(
+            word = loadedWord ?: current.word,
+            state = loadedRemark?.let { current.state.copy(pet = current.state.pet.copy(moodNote = it.text)) } ?: current.state,
+        ) }
+        publish()
+    }
+    private suspend fun <T> optional(block: suspend () -> T): T? = try { block() }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { null }
+
+    private suspend fun acceptState(out: StateOut) {
+        cache = cache?.copy(state = out, cachedAt = Instant.now().toString())
+            ?: ServerCache(serverAddress = _serverAddress.value, state = out, cachedAt = Instant.now().toString())
+        publish()
+    }
+    private suspend fun publish() {
+        val current = cache ?: return
+        _state.value = current.toSnapshot(emptyState(mode == "demo"), online = true)
+        glossary = current.terms.map { it.toModel() }
+        _extrasEnabled.value = true
+        persist()
+    }
+    private suspend fun persist() {
+        cache?.let { cacheStore.write(cacheId(mode), FinikJson.json.encodeToString(ServerCache.serializer(), it)) }
+    }
+    private suspend fun finishAction(out: StateOut, message: String? = null) {
+        acceptState(out)
+        if (!message.isNullOrBlank()) _toasts.emit(ToastEvent(message))
+        refreshListsAfterAction()
+    }
+    private suspend fun refreshListsAfterAction() {
+        try { refreshLists() }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { markFailure(e, "Действие сохранено на сервере. Не удалось обновить все данные; нажми «Обновить».") }
+    }
+    private suspend fun refreshLists() = coroutineScope {
+        val shop = async { api.shopItems() }
+        val tasks = async { api.tasks() }
+        val profile = async { api.profile() }
+        val history = async { api.history() }
+        val badges = async { api.badges() }
+        val terms = async { api.terms() }
+        val event = async { api.todayEvent() }
+        val loadedProfile = profile.await()
+        cache = cache?.copy(
+            state = loadedProfile.state ?: cache!!.state,
+            shop = shop.await(), tasks = tasks.await(), profile = loadedProfile,
+            history = history.await(), badges = badges.await(), terms = terms.await(), event = event.await(),
+            cachedAt = Instant.now().toString(),
+        )
+        publish()
     }
 
-    private suspend fun <T> runCatchingUser(block: suspend () -> T): T? {
+    private suspend fun <T> readRequest(block: suspend () -> T): T? = request(requireOnline = false) {
+        // An explicit retry in a content sheet can reconnect without closing the sheet.
+        // Authentication resumes this profile; it never supplies a demo reset preset.
+        if (!_state.value.online) authenticate(mode)
+        block()
+    }
+
+    private suspend fun <T> request(requireOnline: Boolean = true, block: suspend () -> T): T? {
+        // Drop repeated taps while a request is in flight; never queue financial commands offline.
+        if (!requests.tryLock()) return null
+        _busy.value = true
+        _error.value = null
         return try {
+            initializeEndpoint()
+            if (requireOnline) check(_state.value.online) { "Без сети доступен только просмотр. Нажми «Обновить» после подключения." }
             withContext(io) { block() }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            _toasts.emit(ToastEvent(e.userMessage(), warning = true))
-            null
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { markFailure(e); null }
+        finally { _busy.value = false; requests.unlock() }
+    }
+    private fun checkConnectionConfigured() {
+        val activeConfig = networkConfig.copy(baseUrl = _serverAddress.value)
+        check(activeConfig.canConnect) { if (!activeConfig.isConfigured) "Адрес сервера не настроен." else "Для этой сборки нужен HTTPS-адрес сервера." }
+    }
+    private suspend fun markFailure(error: Exception, override: String? = null) {
+        val unavailable = error is SerializationException || error !is IllegalArgumentException && error !is IllegalStateException &&
+            (error !is FinikApiException || error.httpStatus == 401 || error.httpStatus >= 500)
+        if (unavailable) {
+            _state.value = _state.value.copy(online = false, ready = true)
+            _extrasEnabled.value = false
         }
-    }
-
-    private suspend fun apply(block: GameSnapshot.() -> EngineResult) = stateMutex.withLock {
-        commit(_state.value.block())
-    }
-
-    private suspend fun mutate(block: GameSnapshot.() -> GameSnapshot) = stateMutex.withLock {
-        val next = _state.value.block()
-        persist(next)
-        _state.value = next
-    }
-
-    private suspend fun commit(result: EngineResult) {
-        persist(result.state)
-        _state.value = result.state
-        if (result.message.isNotBlank()) {
-            _toasts.emit(ToastEvent(result.message, result.warning))
+        if (error is FinikApiException && error.httpStatus == 401) session.clearToken()
+        val text = override ?: when {
+            error is SerializationException -> "Ответ сервера не удалось прочитать. Обнови состояние перед повтором действия."
+            error is IllegalArgumentException || error is IllegalStateException -> error.message.orEmpty()
+            error is FinikApiException -> error.userMessage()
+            else -> "Нет связи с сервером. Доступен просмотр сохранённого состояния. Обнови его перед повтором действия."
         }
+        _error.value = text
+        _toasts.emit(ToastEvent(text, warning = true))
     }
-
-    private suspend fun persist(snapshot: GameSnapshot) {
-        if (!snapshot.onboarded) {
-            withContext(io) { db.stateDao().clear() }
-            return
-        }
-        withContext(io) {
-            db.stateDao().upsert(StateEntity(json = snapshot.encode()))
-        }
-    }
-
-    private fun today(): Long = LocalDate.now().toEpochDay()
+    private fun cacheId(mode: String) = if (mode == "demo") 2 else 1
+    private fun planAmounts(amounts: Map<SpendCategory, Int>) = PlanIn(
+        amounts[SpendCategory.FOOD] ?: 0, amounts[SpendCategory.WATER] ?: 0,
+        amounts[SpendCategory.PLAY] ?: 0, amounts[SpendCategory.SAVE] ?: 0,
+    )
 }

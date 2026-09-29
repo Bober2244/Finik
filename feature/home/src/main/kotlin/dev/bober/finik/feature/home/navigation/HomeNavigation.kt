@@ -18,8 +18,13 @@ import androidx.navigation.NavOptions
 import androidx.navigation.compose.composable
 import dev.bober.finik.core.data.FinikViewModel
 import dev.bober.finik.feature.home.HomeScreen
+import dev.bober.finik.feature.home.HomeExtrasSheet
 import kotlinx.serialization.Serializable
 import org.koin.compose.viewmodel.koinViewModel
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Serializable
 data object HomeRoute
@@ -38,15 +43,17 @@ fun NavGraphBuilder.homeScreen(
     composable<HomeRoute> {
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
+        val busy by vm.busy.collectAsStateWithLifecycle()
+        var extrasOpen by remember { mutableStateOf(false) }
         var action by remember { mutableStateOf(PetAnimation.IDLE) }
         var actionEventId by remember { mutableLongStateOf(0L) }
         LaunchedEffect(vm) {
             vm.careEvents.collect { event ->
                 action = when (event.category) {
                     SpendCategory.WATER -> PetAnimation.DRINK
-                    SpendCategory.FOOD -> PetAnimation.WALK
+                    SpendCategory.FOOD -> PetAnimation.EAT
                     SpendCategory.PLAY -> PetAnimation.RUN
-                    SpendCategory.SAVE -> PetAnimation.THINK
+                    SpendCategory.SAVE -> PetAnimation.GREET
                 }
                 actionEventId = event.sequence
             }
@@ -60,6 +67,15 @@ fun NavGraphBuilder.homeScreen(
             care = state.care,
             streak = state.streak,
             planConfirmed = state.planConfirmed,
+            actionsEnabled = state.online && !busy,
+            demoMode = state.demoMode,
+            canAdvanceTime = state.canAdvanceTime,
+            weekLabel = "Неделя ${state.weekNumber} · до ${localDate(state.weekEnd, state.timezone)} · ${state.timezone}",
+            todayEvent = state.todayEvent,
+            wordOfDay = state.wordOfDay,
+            onChooseEvent = vm::chooseEvent,
+            onAdvanceDay = vm::advanceDemoDay,
+            onOpenStories = { extrasOpen = true },
             goalTitle = state.selectedGoal.title,
             goalSaved = state.selectedGoal.saved,
             goalTarget = state.selectedGoal.target,
@@ -73,5 +89,10 @@ fun NavGraphBuilder.homeScreen(
                 vm.closeWeek { onCloseWeek() }
             },
         )
+        if (extrasOpen) HomeExtrasSheet(vm = vm, onClose = { extrasOpen = false })
     }
 }
+
+private fun localDate(value: String, timezone: String): String = runCatching {
+    Instant.parse(value).atZone(ZoneId.of(timezone)).format(DateTimeFormatter.ofPattern("d MMMM, HH:mm", Locale.forLanguageTag("ru")))
+}.getOrDefault(value.take(10))

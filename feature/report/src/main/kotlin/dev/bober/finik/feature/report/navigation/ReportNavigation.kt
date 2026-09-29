@@ -26,6 +26,7 @@ fun NavGraphBuilder.reportScreen(
     composable<ReportRoute> {
         val vm: FinikViewModel = koinViewModel()
         val state by vm.state.collectAsStateWithLifecycle()
+        val busy by vm.busy.collectAsStateWithLifecycle()
         val report = state.report
         if (report == null) {
             EmptyReportScreen(onBack = onBack)
@@ -42,6 +43,7 @@ fun NavGraphBuilder.reportScreen(
             rows = report.rows,
             summary = report.summary,
             note = report.note,
+            canRepeat = state.online && !busy && !state.planConfirmed,
         )
     }
 }

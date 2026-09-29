@@ -5,12 +5,17 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class LoginIn(
     val deviceId: String,
+    val timezone: String = "UTC",
+    val mode: String = "normal",
+    val demoPreset: String? = null,
 )
 
 @Serializable
 data class LoginOut(
     val token: String,
     val hasPet: Boolean = false,
+    val timezone: String = "UTC",
+    val mode: String = "normal",
 )
 
 @Serializable

@@ -52,6 +52,7 @@ internal fun PlanScreen(
     modifier: Modifier = Modifier,
     plan: WeekPlan = SampleData.plan,
     planConfirmed: Boolean = false,
+    actionsEnabled: Boolean = true,
     onAdjust: (SpendCategory, Int) -> Unit = { _, _ -> },
     onAdvice: () -> Unit = {},
     onReset: () -> Unit = {},
@@ -60,12 +61,15 @@ internal fun PlanScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .verticalScroll(rememberScrollState())
             .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         UnallocatedCard(plan = plan)
+        Text(
+            text = if (planConfirmed) "Добавляй свободные монеты в любую статью. Уже распределённые деньги переносить нельзя." else "Можно подтвердить план, оставив часть монет свободными.",
+            style = nunito(13), color = FinikColor.Text46,
+        )
         val availableBudget = (plan.total + plan.freeCoins).coerceAtLeast(1)
         plan.entries.forEach { entry ->
             PlanEntryCard(
@@ -73,19 +77,23 @@ internal fun PlanScreen(
                 allocationPercent = (entry.planned * 100f / availableBudget).toInt(),
                 allocationProgress = entry.planned.toFloat() / availableBudget,
                 confirmed = planConfirmed,
+                canIncrease = actionsEnabled && plan.freeCoins > 0,
+                actionsEnabled = actionsEnabled,
                 onAdjust = { delta -> onAdjust(entry.category, delta) },
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+        if (!planConfirmed) Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             OutlineButton(
                 text = "Распределить",
                 onClick = onAdvice,
+                enabled = actionsEnabled,
                 modifier = Modifier.weight(1f),
                 icon = FinikIcons.Advice,
             )
             OutlineButton(
                 text = "Сброс",
                 onClick = onReset,
+                enabled = actionsEnabled,
                 modifier = Modifier.width(108.dp),
                 textStyle = nunito(14),
                 icon = FinikIcons.Reset,
@@ -96,13 +104,13 @@ internal fun PlanScreen(
                 text = "Подтвердить план",
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = plan.freeCoins == 0,
+                enabled = actionsEnabled,
                 icon = FinikIcons.Confirm,
             )
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(FinikIcons.Confirm, contentDescription = null, modifier = Modifier.size(20.dp), tint = FinikColor.Green)
-                Text(text = "План действует", style = nunito(14, FontWeight.SemiBold), color = FinikColor.Text46)
+                Text(text = "План действует · можно пополнять статьи", style = nunito(14, FontWeight.SemiBold), color = FinikColor.Text46)
             }
         }
     }
@@ -158,6 +166,8 @@ private fun PlanEntryCard(
     allocationPercent: Int,
     allocationProgress: Float,
     confirmed: Boolean,
+    canIncrease: Boolean,
+    actionsEnabled: Boolean,
     onAdjust: (Int) -> Unit,
 ) {
     val categoryIcon = when (entry.category) {
@@ -181,7 +191,7 @@ private fun PlanEntryCard(
             }
             Text(text = entry.category.label, style = nunito(14.5), color = FinikColor.Ink, modifier = Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                StepperButton(icon = FinikIcons.Remove, label = "Уменьшить бюджет: ${entry.category.label}", onClick = { onAdjust(-1) }, enabled = !confirmed)
+                StepperButton(icon = FinikIcons.Remove, label = "Уменьшить бюджет: ${entry.category.label}", onClick = { onAdjust(-1) }, enabled = actionsEnabled && !confirmed && entry.planned > entry.spent)
                 Text(
                     text = entry.planned.toString(),
                     style = nunito(18, FontWeight.ExtraBold),
@@ -189,7 +199,7 @@ private fun PlanEntryCard(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.width(34.dp),
                 )
-                StepperButton(icon = FinikIcons.Add, label = "Увеличить бюджет: ${entry.category.label}", onClick = { onAdjust(1) }, enabled = !confirmed)
+                StepperButton(icon = FinikIcons.Add, label = "Увеличить бюджет: ${entry.category.label}", onClick = { onAdjust(1) }, enabled = canIncrease)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {

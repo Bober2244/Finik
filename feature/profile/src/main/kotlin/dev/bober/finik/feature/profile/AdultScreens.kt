@@ -1,6 +1,5 @@
 package dev.bober.finik.feature.profile
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,8 +9,10 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import dev.bober.finik.core.designsystem.component.FinikConfirmSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,7 +43,6 @@ internal fun HelpScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .systemBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
@@ -77,22 +77,23 @@ internal fun AdultScreen(
     tasksDone: Int,
     tasksTotal: Int,
     onlineExtras: Boolean,
+    actionsEnabled: Boolean,
     wordOfDay: WordOfDay?,
     todayEvent: TodayEvent?,
     onBack: () -> Unit,
-    onToggleOnlineExtras: (Boolean) -> Unit,
-    onBonus: () -> Unit,
+    onBonus: (String, Int, String) -> Unit,
     onLoadExtra: (String, (String) -> Unit) -> Unit,
     onLoadQuiz: ((AiQuiz?) -> Unit) -> Unit,
     onAnswerQuiz: (Int, Int, (String) -> Unit) -> Unit,
     onChooseEvent: (String, String) -> Unit,
     onChat: (String, (String) -> Unit) -> Unit,
     onReset: () -> Unit,
-    onLocalReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var bonusPin by rememberSaveable { mutableStateOf("") }
+    var bonusAmount by rememberSaveable { mutableStateOf("10") }
+    var bonusReason by rememberSaveable { mutableStateOf("") }
     var showReset by rememberSaveable { mutableStateOf(false) }
-    var showLocalReset by rememberSaveable { mutableStateOf(false) }
     var extraText by rememberSaveable { mutableStateOf("") }
     var chatText by rememberSaveable { mutableStateOf("") }
     var chatReply by rememberSaveable { mutableStateOf("") }
@@ -101,7 +102,6 @@ internal fun AdultScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .systemBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
@@ -130,28 +130,20 @@ internal fun AdultScreen(
         FinikCard(gap = 8.dp) {
             Text(text = "Поддержка взрослого", style = nunito(15), color = FinikColor.Ink)
             Text(
-                text = "Добавьте 10 игровых монет. Операция сохранится в истории доходов.",
+                text = "Начислите от 1 до 20 игровых монет за полезное дело. Укажите причину и подтвердите родительским PIN-кодом.",
                 style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4),
                 color = FinikColor.Text46,
             )
         }
+        TextField(value = bonusAmount, onValueChange = { bonusAmount = it.filter(Char::isDigit).take(2) }, label = { Text("Монет: 1–20") }, enabled = actionsEnabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+        TextField(value = bonusReason, onValueChange = { bonusReason = it.take(120) }, label = { Text("За что начисляем?") }, enabled = actionsEnabled, modifier = Modifier.fillMaxWidth())
+        TextField(value = bonusPin, onValueChange = { bonusPin = it.take(32) }, label = { Text("Родительский PIN") }, enabled = actionsEnabled, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
         PrimaryButton(
-            text = "Добавить 10 монет поддержки",
-            onClick = onBonus,
+            text = "Начислить бонус",
+            onClick = { onBonus(bonusPin, bonusAmount.toIntOrNull() ?: 0, bonusReason); bonusPin = "" },
+            enabled = actionsEnabled && bonusAmount.toIntOrNull() in 1..20 && bonusReason.isNotBlank() && bonusPin.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         )
-        FinikCard(gap = 8.dp) {
-            Text(text = "Сетевые материалы", style = nunito(15), color = FinikColor.Ink)
-            Text(
-                text = "При включении приложение отправит случайный идентификатор серверу. Игровые монеты, прогресс и копилка останутся только на этом устройстве. Для подключения нужен HTTPS сервер.",
-                style = nunito(13, FontWeight.SemiBold, lineHeight = 1.4), color = FinikColor.Text46,
-            )
-            SettingsRow(
-                icon = { SettingsIcon(FinikIcons.Adult, FinikColor.Green) },
-                title = "Включить сетевые материалы",
-                onClick = { onToggleOnlineExtras(!onlineExtras) },
-            ) { ToggleLite(onlineExtras) }
-        }
         if (onlineExtras) {
             wordOfDay?.let { word ->
                 FinikCard(gap = 5.dp) {
@@ -164,35 +156,36 @@ internal fun AdultScreen(
                     Text(text = event.title, style = nunito(15), color = FinikColor.Ink)
                     Text(text = event.text, style = nunito(13), color = FinikColor.Text46)
                     if (event.chosen == null) event.options.forEach { option ->
-                        PrimaryButton(text = option.label, onClick = { onChooseEvent(event.id, option.key) }, modifier = Modifier.fillMaxWidth())
+                        PrimaryButton(text = option.label, enabled = actionsEnabled, onClick = { onChooseEvent(event.id, option.key) }, modifier = Modifier.fillMaxWidth())
                     }
                 }
             }
             FinikCard(gap = 8.dp) {
                 Text(text = "Дополнительные истории", style = nunito(15), color = FinikColor.Ink)
                 listOf("diary" to "Дневник", "dream" to "Совет по мечте", "origin" to "История питомца", "summary" to "Итоги недели").forEach { (kind, title) ->
-                    PrimaryButton(text = title, onClick = { onLoadExtra(kind) { extraText = it } }, modifier = Modifier.fillMaxWidth())
+                    PrimaryButton(text = title, enabled = actionsEnabled, onClick = { onLoadExtra(kind) { extraText = it } }, modifier = Modifier.fillMaxWidth())
                 }
                 if (extraText.isNotBlank()) Text(text = extraText, style = nunito(13, lineHeight = 1.4), color = FinikColor.Text46)
             }
             FinikCard(gap = 8.dp) {
                 Text(text = "Дополнительная викторина", style = nunito(15), color = FinikColor.Ink)
-                PrimaryButton(text = "Получить вопросы", onClick = { onLoadQuiz { quiz = it } }, modifier = Modifier.fillMaxWidth())
+                PrimaryButton(text = "Получить вопросы", enabled = actionsEnabled, onClick = { onLoadQuiz { quiz = it } }, modifier = Modifier.fillMaxWidth())
                 quiz?.questions?.forEach { question ->
                     Text(text = question.question, style = nunito(13), color = FinikColor.Ink)
                     question.options.forEachIndexed { answerIndex, option ->
                         PrimaryButton(
                             text = option,
+                            enabled = actionsEnabled,
                             onClick = { onAnswerQuiz(question.index, answerIndex) { quizFeedback = it } },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
                 if (quizFeedback.isNotBlank()) Text(text = quizFeedback, style = nunito(13), color = FinikColor.Text46)
-                Text(text = "Ответы не меняют локальные игровые монеты.", style = nunito(12), color = FinikColor.Text50)
+                Text(text = "За первый правильный ответ дня можно получить награду. Результат сохранится в профиле.", style = nunito(12), color = FinikColor.Text50)
             }
             FinikCard(gap = 8.dp) {
-                Text(text = "Свободный AI-чат для взрослого", style = nunito(15), color = FinikColor.Ink)
+                Text(text = "Чат с совой", style = nunito(15), color = FinikColor.Ink)
                 TextField(
                     value = chatText,
                     onValueChange = { chatText = it.take(500) },
@@ -202,6 +195,7 @@ internal fun AdultScreen(
                 )
                 PrimaryButton(
                     text = "Спросить",
+                    enabled = actionsEnabled && chatText.isNotBlank(),
                     onClick = { if (chatText.isNotBlank()) onChat(chatText) { chatReply = it } },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -213,47 +207,15 @@ internal fun AdultScreen(
             title = "Удалить профиль и данные",
             titleColor = FinikColor.RedReset,
             borderColor = FinikColor.RedBorderReset,
-            onClick = { showReset = true },
-        )
-        SettingsRow(
-            icon = { SettingsIcon(FinikIcons.Reset, FinikColor.RedIcon) },
-            title = "Удалить только на устройстве",
-            titleColor = FinikColor.RedReset,
-            borderColor = FinikColor.RedBorderReset,
-            onClick = { showLocalReset = true },
+            onClick = { if (actionsEnabled) showReset = true },
         )
     }
     if (showReset) FinikConfirmSheet(
         title = "Сбросить профиль?",
-        body = "Монеты, питомец и достижения на этом устройстве будут удалены.",
+        body = "Монеты, питомец и достижения текущего профиля будут удалены с сервера. Это действие нельзя отменить.",
         confirmText = "Сбросить",
         warning = true,
         onConfirm = { showReset = false; onReset() },
         onDismiss = { showReset = false },
     )
-    if (showLocalReset) FinikConfirmSheet(
-        title = "Удалить только локальный профиль?",
-        body = "Игровой прогресс на этом устройстве исчезнет. Если ранее использовался сервер, его данные останутся там.",
-        confirmText = "Удалить локально",
-        warning = true,
-        onConfirm = { showLocalReset = false; onLocalReset() },
-        onDismiss = { showLocalReset = false },
-    )
-}
-
-@Composable
-private fun ToggleLite(on: Boolean) {
-    androidx.compose.foundation.layout.Box(
-        modifier = Modifier
-            .background(if (on) FinikColor.Green else FinikColor.BorderStrong, androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .padding(3.dp)
-            .then(Modifier),
-    ) {
-        Text(
-            text = if (on) "вкл" else "выкл",
-            style = nunito(12),
-            color = if (on) MaterialTheme.colorScheme.onPrimary else FinikColor.Ink,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-        )
-    }
 }

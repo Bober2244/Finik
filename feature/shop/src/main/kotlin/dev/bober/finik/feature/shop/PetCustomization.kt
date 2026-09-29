@@ -46,6 +46,7 @@ internal fun PetCustomization(
     pet: PetProfile,
     onSave: (PetAppearance) -> Unit,
     onPetInteractionChange: (Boolean) -> Unit,
+    actionsEnabled: Boolean = true,
 ) {
     var draft by remember(pet.appearance, pet.species) { mutableStateOf(pet.appearance) }
     var action by remember { mutableStateOf(PetAnimation.IDLE) }
@@ -87,10 +88,10 @@ internal fun PetCustomization(
             swatch = { Color(it.swatchArgb) },
             onSelect = { draft = draft.copy(furColor = it) },
         )
-        Text("Все варианты внешности доступны бесплатно. Внешность сохраняется на этом устройстве.", style = nunito(12), color = FinikColor.Text50)
+        Text("Внешность сохраняется в профиле совы. Для сохранения нужно подключение.", style = nunito(12), color = FinikColor.Text50)
         PrimaryButton(
             text = if (draft == pet.appearance) "Внешность сохранена" else "Сохранить внешность",
-            enabled = draft != pet.appearance,
+            enabled = actionsEnabled && draft != pet.appearance,
             onClick = { onSave(draft) },
             modifier = Modifier.fillMaxWidth(),
         )
@@ -99,7 +100,8 @@ internal fun PetCustomization(
             ChoiceRow(
                 values = listOf(
                     PetAnimation.IDLE, PetAnimation.CALM, PetAnimation.WALK, PetAnimation.RUN,
-                    PetAnimation.DRINK, PetAnimation.GREET, PetAnimation.HELP, PetAnimation.THINK,
+                    PetAnimation.DRINK, PetAnimation.GREET, PetAnimation.HELP, PetAnimation.EAT,
+                    PetAnimation.DANCE,
                 ),
                 selected = action,
                 label = {
@@ -111,7 +113,8 @@ internal fun PetCustomization(
                         PetAnimation.DRINK -> "Пьёт"
                         PetAnimation.GREET -> "Приветствует"
                         PetAnimation.HELP -> "Зовёт на помощь"
-                        PetAnimation.THINK -> "Размышляет"
+                        PetAnimation.EAT -> "Ест"
+                        PetAnimation.DANCE -> "Танцует"
                     }
                 },
                 onSelect = { action = it; actionEventId++ },

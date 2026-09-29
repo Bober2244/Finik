@@ -53,11 +53,11 @@ internal fun ReportScreen(
     rows: List<ReportRow> = SampleData.reportRows,
     summary: String = SampleData.REPORT_SUMMARY,
     note: String = SampleData.REPORT_NOTE,
+    canRepeat: Boolean = true,
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .systemBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 14.dp),
@@ -100,6 +100,7 @@ internal fun ReportScreen(
                 OutlineButton(
                     text = "Повторить",
                     onClick = onRepeat,
+                    enabled = canRepeat,
                     modifier = Modifier.weight(1f),
                     height = 48.dp,
                     radius = 12.dp,
@@ -113,7 +114,7 @@ internal fun ReportScreen(
 @Composable
 internal fun EmptyReportScreen(onBack: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().background(FinikColor.Background).systemBarsPadding()
+        modifier = Modifier.fillMaxSize().systemBarsPadding()
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

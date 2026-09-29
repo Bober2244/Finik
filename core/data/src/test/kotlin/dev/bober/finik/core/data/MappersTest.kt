@@ -31,12 +31,13 @@ class MappersTest {
     }
 
     @Test
-    fun remoteRefreshPreservesLocallySavedAnimalAppearance() {
+    fun remoteRefreshUsesServerAnimalAppearance() {
         val appearance = PetAppearance(PetFurColor.DESERT_SAND, PetEyeColor.BLUE, PetAccessory.NONE)
         val previous = SampleData.snapshot.copy(pet = SampleData.pet.copy(appearance = appearance))
         val remote = FinikJson.json.decodeFromString(StateOut.serializer(), STATE_JSON)
-        val refreshed = remote.toSnapshot(previous)
-        assertEquals(appearance, refreshed.pet.appearance)
+        val refreshed = remote.copy(pet = remote.pet.copy(lookVariant = 4, accessories = listOf("hat", "medal"))).toSnapshot(previous)
+        assertEquals(PetFurColor.NIGHT_PURPLE, refreshed.pet.appearance.furColor)
+        assertEquals(setOf(PetAccessory.HAT, PetAccessory.MEDAL), refreshed.pet.appearance.accessories)
         assertEquals(remote.pet.xp, refreshed.pet.totalXp)
         assertEquals(remote.week.day, refreshed.pet.dayOfWeek)
     }

@@ -63,6 +63,7 @@ internal fun NamePetScreen(
     modifier: Modifier = Modifier,
     species: PetSpecies = PetSpecies.OWL,
     appearance: PetAppearance = PetAppearance(),
+    actionsEnabled: Boolean = true,
 ) {
     var name by rememberSaveable { mutableStateOfString() }
     var income by rememberSaveable { mutableStateOfInt(SampleData.WEEKLY_INCOME) }
@@ -71,7 +72,6 @@ internal fun NamePetScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FinikColor.Background)
             .systemBarsPadding()
             .imePadding()
             .verticalScroll(rememberScrollState(), enabled = !petInteractionActive)
@@ -120,7 +120,7 @@ internal fun NamePetScreen(
             text = "Начать неделю",
             onClick = { onFinish(name.ifBlank { species.title }, income) },
             modifier = Modifier.fillMaxWidth(),
-            enabled = name.isNotBlank(),
+            enabled = actionsEnabled && name.isNotBlank(),
             icon = FinikIcons.Confirm,
         )
     }
