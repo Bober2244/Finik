@@ -52,7 +52,7 @@ fun NavGraphBuilder.homeScreen(
                 action = when (event.category) {
                     SpendCategory.WATER -> PetAnimation.DRINK
                     SpendCategory.FOOD -> PetAnimation.EAT
-                    SpendCategory.PLAY -> PetAnimation.RUN
+                    SpendCategory.PLAY -> PetAnimation.DANCE
                     SpendCategory.SAVE -> PetAnimation.GREET
                 }
                 actionEventId = event.sequence
