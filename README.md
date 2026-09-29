@@ -156,7 +156,7 @@ API вызывает сценарии `application`, те используют �
 | Navigation Compose / Lifecycle | 2.10.2 / 2.11.0 |
 | Coroutines / Kotlin serialization JSON | 1.11.0 / 1.11.0 |
 | Koin | 4.2.2, внедрение зависимостей |
-| Ktor + OkHttp | 3.6.0, сеть |
+| Ktor | 3.6.0, HTTP-клиент с движком OkHttp |
 | Room / DataStore | 2.8.5 / 1.2.1 |
 | KSP | 2.3.12 |
 | SceneView / Filament | SceneView 4.38.0, 3D-графика |
@@ -283,6 +283,14 @@ uv sync --python 3.13 --all-groups --frozen
 ```
 
 `uv` создаст окружение `.venv` и установит версии из `uv.lock`. Активировать окружение для команд `uv run` не нужно.
+
+Для нативного запуска на **Windows** дополнительно установите IANA-базу часовых поясов в созданное окружение:
+
+```powershell
+uv pip install --python .venv\Scripts\python.exe tzdata
+```
+
+Сервер использует `zoneinfo.ZoneInfo` для календаря игрока. На Windows обычно нет системной IANA-базы, а пакет `tzdata` пока не включён в `uv.lock`. Повторяйте его установку после `uv sync`, который может удалить дополнительные пакеты. При запуске через Docker этот шаг не требуется.
 
 Создайте роль приложения и базу через администратора PostgreSQL. В примере администратор называется `postgres`, сервер находится на `localhost:5432`:
 
